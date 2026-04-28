@@ -1,0 +1,16 @@
+#provider=openai
+#model=gpt-5-nano
+
+provider=groq
+model=llama-3.1-8b-instant
+
+openai.api.key=your_openai_key
+openai.base.url=https://api.openai.com/v1
+
+groq.api.key=your_groq_key
+groq.base.url=https://api.groq.com/openai/v1
+
+ollama.base.url=http://localhost:11434
+
+prompt.template.file=ai-fix-prompt.txt
+prompt.fix-template.file=ai-fix-prompt-fix.txt
