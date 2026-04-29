@@ -1,5 +1,6 @@
 target
 .vscode
+.mvn-user-home
 index.json
 project-summary.json
 understand.md

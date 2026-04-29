@@ -74,6 +74,7 @@ For this repository, prefer:
 - run `.\setup-jdk25.ps1` or `setup-jdk25.bat` first
 - then use `.\mvnw.cmd -s .mvn-local-settings.xml ...`
 - rely on the setup scripts to set `JAVA_HOME` and `MAVEN_USER_HOME`
+- mvnw -Dmaven.repo.local=d:\.m2\repository -Dtest=PatchRetryExecutorTest,FixCliOptionsTest test
 
 ---
 

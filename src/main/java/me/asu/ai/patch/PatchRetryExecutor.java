@@ -9,11 +9,15 @@ import me.asu.ai.model.ProjectSummary;
 
 import java.io.FileWriter;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
 public class PatchRetryExecutor {
+    private static final String AI_FIX_INSTRUCTIONS_FILE = "aifix.md";
 
     private final LLMClient llm; 
     private final String model;
@@ -21,6 +25,7 @@ public class PatchRetryExecutor {
     private final boolean dryRun;
     private final AppConfig config;
     private final ProjectSummary projectSummary;
+    private final String agentInstructions;
 
     public PatchRetryExecutor(
             LLMClient llm,
@@ -35,6 +40,7 @@ public class PatchRetryExecutor {
         this.dryRun = dryRun;
         this.config = config;
         this.projectSummary = projectSummary;
+        this.agentInstructions = loadAgentInstructions();
     }
 
     public PatchResult execute(String task, MethodInfo target) {
@@ -58,10 +64,11 @@ public class PatchRetryExecutor {
                     diff = llm.generate(fixPrompt);
                 }
 
-                diff = extractDiff(diff);
+                DiffValidationResult validation = validateAndNormalizeDiff(diff);
+                diff = validation.diff();
 
-                if (diff.isBlank()) {
-                    lastError = "Generated diff is empty";
+                if (!validation.valid()) {
+                    lastError = validation.error();
                     continue;
                 }
 
@@ -133,7 +140,7 @@ public class PatchRetryExecutor {
                 Prefer the smallest possible patch that satisfies the task.
                 """;
         }
-        return applyTemplate(template, task, target, code, "", "");
+        return prependAgentInstructions(applyTemplate(template, task, target, code, "", ""));
     }
 
     private String buildFixPrompt(
@@ -189,7 +196,7 @@ public class PatchRetryExecutor {
                 Prefer fixing patch context over rewriting the whole method.
                 """;
         }
-        return applyTemplate(template, task, target, latestCode, failedDiff, error);
+        return prependAgentInstructions(applyTemplate(template, task, target, latestCode, failedDiff, error));
     }
 
     private String applyTemplate(
@@ -211,6 +218,18 @@ public class PatchRetryExecutor {
                 .replace("{code}", safe(code))
                 .replace("{failedDiff}", safe(failedDiff))
                 .replace("{error}", safe(error));
+    }
+
+    private String prependAgentInstructions(String prompt) {
+        if (agentInstructions == null || agentInstructions.isBlank()) {
+            return prompt;
+        }
+        return """
+                Base patch instructions:
+                %s
+
+                %s
+                """.formatted(agentInstructions, prompt);
     }
 
     private String safe(String value) {
@@ -364,27 +383,59 @@ public class PatchRetryExecutor {
                 : value.replaceAll("[^a-zA-Z0-9.-]", "");
     }
 
-    private String extractDiff(String text) {
-        if (text == null)
+    private String loadAgentInstructions() {
+        Path path = Paths.get(System.getProperty("user.home"), ".config", AI_FIX_INSTRUCTIONS_FILE)
+                .toAbsolutePath()
+                .normalize();
+        if (!Files.isRegularFile(path)) {
             return "";
+        }
+        try {
+            return Files.readString(path, StandardCharsets.UTF_8).trim();
+        } catch (Exception e) {
+            System.err.println("Warning: failed to read agent instructions: " + path);
+            return "";
+        }
+    }
 
-        text = text.trim();
-
-        if (text.startsWith("```")) {
-            text = text.replaceFirst("^```(?:diff|patch)?\\s*", "");
-            text = text.replaceFirst("\\s*```$", "");
+    private DiffValidationResult validateAndNormalizeDiff(String text) {
+        if (text == null) {
+            return DiffValidationResult.invalid("", "Generated diff is empty");
         }
 
-        int idx = text.indexOf("diff --git");
-        if (idx >= 0)
-            return text.substring(idx).trim() + "\n";
+        String trimmed = text.trim();
+        if (trimmed.isBlank()) {
+            return DiffValidationResult.invalid("", "Generated diff is empty");
+        }
 
-        idx = text.indexOf("--- ");
-        if (idx >= 0)
-            return text.substring(idx).trim() + "\n";
+        if (trimmed.startsWith("```")) {
+            String unfenced = trimmed.replaceFirst("^```(?:diff|patch)?\\s*", "")
+                    .replaceFirst("\\s*```$", "")
+                    .trim();
+            if (!unfenced.equals(trimmed)) {
+                trimmed = unfenced;
+            }
+        }
 
-        return text.trim() + "\n";
+        if (startsLikeUnifiedDiff(trimmed)) {
+            return DiffValidationResult.valid(ensureTrailingNewline(trimmed));
+        }
 
+        int gitDiffIndex = trimmed.indexOf("diff --git");
+        int simpleDiffIndex = trimmed.indexOf("--- ");
+        if (gitDiffIndex > 0 || simpleDiffIndex > 0) {
+            return DiffValidationResult.invalid("", "Generated output contains non-diff text before patch");
+        }
+
+        return DiffValidationResult.invalid("", "Generated output is not a valid unified diff");
+    }
+
+    private boolean startsLikeUnifiedDiff(String text) {
+        return text.startsWith("diff --git ") || text.startsWith("--- ");
+    }
+
+    private String ensureTrailingNewline(String text) {
+        return text.endsWith("\n") ? text : text + "\n";
     }
 
     private void runCommand(String... cmd) throws Exception {
@@ -410,6 +461,16 @@ public class PatchRetryExecutor {
             return new ApplyResult(false, error);
         }
 
+    }
+
+    private record DiffValidationResult(boolean valid, String diff, String error) {
+        static DiffValidationResult valid(String diff) {
+            return new DiffValidationResult(true, diff, "");
+        }
+
+        static DiffValidationResult invalid(String diff, String error) {
+            return new DiffValidationResult(false, diff, error);
+        }
     }
 
     public record PatchResult(

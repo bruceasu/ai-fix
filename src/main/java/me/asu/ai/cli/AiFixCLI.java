@@ -27,17 +27,22 @@ import me.asu.ai.patch.PatchRetryExecutor;
 public class AiFixCLI {
 
     public static void main(String[] args) throws Exception {
-        String explicitConfigPath = findOptionValue(args, "--config");
-        AppConfig config = AppConfig.load(explicitConfigPath);
         if (containsHelpFlag(args)) {
             printUsage();
             return;
         }
+        String explicitConfigPath = findOptionValue(args, "--config");
+        AppConfig config = AppConfig.load(explicitConfigPath);
         if (isConfigDebugEnabled(config, args)) {
             config.printDebugSummary();
         }
 
         FixCliOptions options = FixCliOptions.parse(args, config);
+        options.normalize();
+        if (options.printConfigOnly) {
+            config.printDebugSummary();
+            return;
+        }
         if (options.task == null || options.task.isBlank() || "-".equals(options.task.trim())) {
             options.task = readTaskInteractively();
         }
@@ -45,34 +50,9 @@ public class AiFixCLI {
             System.out.println("Task is required");
             return;
         }
-        options.normalize();
-        if (options.printConfigOnly) {
-            config.printDebugSummary();
-            return;
-        }
 
         GitWorktreeSupport git = new GitWorktreeSupport();
         FixTargetMatcher matcher = new FixTargetMatcher();
-        git.ensureGitRepo();
-
-        if (options.useStash) {
-            git.autoStash();
-        } else {
-            git.ensureWorkingTreeClean();
-        }
-
-        if (!options.dryRun) {
-            if (options.branch == null) {
-                options.branch = "ai-fix/" + DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
-                        .format(LocalDateTime.now());
-            }
-            git.checkoutNewBranch(options.branch);
-        }
-
-        if (options.commitMessage == null) {
-            options.commitMessage = "AI fix: " + options.task;
-        }
-
         ObjectMapper mapper = new ObjectMapper();
         List<MethodInfo> index = mapper.readValue(
                 new File("index.json"),
@@ -126,29 +106,51 @@ public class AiFixCLI {
         int success = 0;
         List<String> successList = new ArrayList<>();
         List<String> failedList = new ArrayList<>();
-
-        for (MethodInfo target : targets) {
-            System.out.println("\n=== Processing: " + target.methodName + " ===");
-
-            PatchRetryExecutor.PatchResult result = executor.execute(options.task, target);
-
-            if (result.success()) {
-                success++;
-                successList.add(result.methodName());
-                System.out.println("Applied: " + result.patchFile());
+        boolean shouldPopStash = false;
+        try {
+            if (!options.dryRun) {
+                git.ensureGitRepo();
+                if (options.useStash) {
+                    git.autoStash();
+                    shouldPopStash = true;
+                } else {
+                    git.ensureWorkingTreeClean();
+                }
+                if (options.branch == null) {
+                    options.branch = defaultBranchName();
+                }
+                git.checkoutNewBranch(options.branch);
             } else {
-                failedList.add(result.methodName());
-                System.out.println("Failed: " + result.methodName());
-                System.out.println(result.error());
+                git.ensureGitRepo();
             }
-        }
 
-        if (!options.dryRun && success > 0) {
-            git.commitAll(options.commitMessage + " (" + success + " methods)");
-        }
+            if (options.commitMessage == null) {
+                options.commitMessage = buildDefaultCommitMessage(options.task);
+            }
 
-        if (options.useStash && !options.dryRun) {
-            git.popStashQuietly();
+            for (MethodInfo target : targets) {
+                System.out.println("\n=== Processing: " + target.methodName + " ===");
+
+                PatchRetryExecutor.PatchResult result = executor.execute(options.task, target);
+
+                if (result.success()) {
+                    success++;
+                    successList.add(result.methodName());
+                    System.out.println("Applied: " + result.patchFile());
+                } else {
+                    failedList.add(result.methodName());
+                    System.out.println("Failed: " + result.methodName());
+                    System.out.println(result.error());
+                }
+            }
+
+            if (!options.dryRun && success > 0) {
+                git.commitAll(options.commitMessage + " (" + success + " methods)");
+            }
+        } finally {
+            if (shouldPopStash) {
+                git.popStashQuietly();
+            }
         }
 
         System.out.println("\nSuccess: " + successList);
@@ -231,6 +233,15 @@ public class AiFixCLI {
             }
         }
         return null;
+    }
+
+    static String defaultBranchName() {
+        return "ai-fix/" + DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
+                .format(LocalDateTime.now());
+    }
+
+    static String buildDefaultCommitMessage(String task) {
+        return "AI fix: " + task;
     }
 
     private static ProjectSummary loadProjectSummary(String projectSummaryPath, ObjectMapper mapper) throws Exception {
