@@ -299,11 +299,13 @@ Current `fix` options parsed by `AiFixCLI`:
 - `--annotation <annotationName>`
 - `--limit <number>`
 - `--page-size <number>`
+- `--preview-lines <number>`
 - `--branch <branchName>`
 - `--commit-message <message>`
 - `--model <modelName>`
 - `--config <path>`
 - `--project-summary <path>`
+- `--print-config`
 - `--no-select`
 - `--dry-run`
 - `--stash`
@@ -428,7 +430,12 @@ At the end, `init` prints example environment variable settings for:
 - during interactive selection, you can choose numbers like `1,3`, type more words to narrow the list again, enter `*` to use all currently matched results, enter `b` to go back to the previous filtered list, or enter `q` to quit
 - when the candidate list is long, `fix` shows it in pages and supports `n` / `p` to move between pages, plus `g <page>` to jump directly
 - `--page-size` controls how many candidates are shown per page during interactive selection
-- candidate lines include the method signature and a score to better distinguish overloaded methods and explain ranking
+- `--preview-lines` controls how many code lines are shown in each candidate preview
+- candidate lines include the method signature, a score, and a short code preview to better distinguish overloaded methods and explain ranking
+- previews prefer a window around the first matched term, and fall back to the method start when no match is found in code lines
+- preview lines include source line numbers so the snippet is easier to map back to the file
+- matched terms are highlighted in candidate lines and previews using `[[term]]` style markers for terminal-friendly readability
+- `--print-config` prints the resolved configuration and exits before any Git or LLM work starts
 - if `--stash` is not used, the working tree must be clean
 - if `--dry-run` is not used, the tool creates a branch automatically when `--branch` is omitted
 - successful non-dry-run execution stages changes and creates a commit

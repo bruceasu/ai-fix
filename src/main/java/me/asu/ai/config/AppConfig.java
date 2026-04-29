@@ -59,6 +59,11 @@ public class AppConfig {
         System.out.println("- loaded sources=" + (loadedSources.isEmpty() ? "(none)" : String.join(", ", loadedSources)));
         System.out.println("- provider=" + get("provider", "openai"));
         System.out.println("- model=" + get("model", "gpt-4.1"));
+        System.out.println("- prompt.template.file=" + safeValue(get("prompt.template.file")));
+        System.out.println("- prompt.fix-template.file=" + safeValue(get("prompt.fix-template.file")));
+        System.out.println("- openai.base.url=" + safeValue(get("openai.base.url")));
+        System.out.println("- groq.base.url=" + safeValue(get("groq.base.url")));
+        System.out.println("- ollama.base.url=" + safeValue(get("ollama.base.url")));
         System.out.println("- openai.api.key=" + maskSecret(get("openai.api.key")));
         System.out.println("- groq.api.key=" + maskSecret(get("groq.api.key")));
     }
@@ -163,5 +168,9 @@ public class AppConfig {
             return "***";
         }
         return value.substring(0, 3) + "***" + value.substring(value.length() - 3);
+    }
+
+    private String safeValue(String value) {
+        return value == null || value.isBlank() ? "(missing)" : value;
     }
 }

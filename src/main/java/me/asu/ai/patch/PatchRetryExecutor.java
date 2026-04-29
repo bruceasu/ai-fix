@@ -121,13 +121,16 @@ public class PatchRetryExecutor {
                 {code}
                 ```
                 Rules:
-
                 Output ONLY unified diff.
                 No explanation.
                 The diff must be applicable by git apply.
                 Use the file path exactly as shown: {file}
-
-                Keep changes minimal.
+                Keep changes minimal and localized.
+                Modify only the target method unless the task absolutely requires a nearby import or class-level change.
+                Do not rename methods, classes, packages, or files unless the task explicitly requires it.
+                Do not reformat unrelated code.
+                Preserve existing behavior outside the requested change.
+                Prefer the smallest possible patch that satisfies the task.
                 """;
         }
         return applyTemplate(template, task, target, code, "", "");
@@ -175,14 +178,15 @@ public class PatchRetryExecutor {
                 Fix the patch so it applies cleanly to the current latest code.
 
                 Rules:
-
                 Output ONLY corrected unified diff.
                 No explanation.
                 Preserve the original intent.
                 Fix context, line ranges, and patch format if needed.
                 The diff must be applicable by git apply.
-
                 Use the file path exactly as shown: {file}
+                Keep the correction minimal and localized.
+                Do not expand the patch to unrelated methods or files.
+                Prefer fixing patch context over rewriting the whole method.
                 """;
         }
         return applyTemplate(template, task, target, latestCode, failedDiff, error);
