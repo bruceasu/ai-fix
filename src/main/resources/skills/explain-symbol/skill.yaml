@@ -1,0 +1,33 @@
+name: explain-symbol
+description: Read a symbol from index.json and explain its purpose and behavior.
+autoExecuteAllowed: true
+arguments: []
+steps:
+  - id: symbolContext
+    type: tool
+    toolName: index-symbol-reader
+    outputKey: symbolContext
+    arguments:
+      symbol: ${input.symbol}
+      container: ${input.container}
+      indexPath: ${input.indexPath}
+  - id: explanation
+    type: tool
+    toolName: llm
+    outputKey: explanation
+    arguments:
+      prompt: |
+        You are a senior developer assistant.
+        Based on the following symbol context, explain:
+        1. The symbol's responsibility
+        2. Its main inputs, outputs, or behavior
+        3. Important dependencies or risks
+        4. What else should be checked before changing it
+
+        Requirements:
+        - Write for developers
+        - Keep the output concise
+        - Do not invent facts that are not present in the context
+
+        Symbol context:
+        ${symbolContext}

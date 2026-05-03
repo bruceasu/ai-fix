@@ -1,0 +1,94 @@
+name: youtube-transcript-and-summarize
+description: Fetch YouTube transcripts and summarize the central ideas for one or more videos.
+autoExecuteAllowed: true
+arguments:
+  - name: input
+    type: string
+    description: Single YouTube URL or 11-character video ID
+    required: false
+  - name: inputs
+    type: string
+    description: Multiple YouTube URLs or IDs separated by commas or newlines
+    required: false
+  - name: inputsFile
+    type: string
+    description: Text file containing one YouTube URL or video ID per line
+    required: false
+  - name: languages
+    type: string
+    description: Preferred transcript languages, comma-separated
+    required: false
+    defaultValue: zh-Hans,zh,en,ja
+  - name: outputDir
+    type: string
+    description: Optional transcript output directory
+    required: false
+  - name: workers
+    type: string
+    description: Parallel worker count
+    required: false
+    defaultValue: "4"
+  - name: retries
+    type: string
+    description: Transcript fetch retry count per video
+    required: false
+    defaultValue: "3"
+  - name: useCache
+    type: string
+    description: true to reuse local cache entries
+    required: false
+    defaultValue: "true"
+  - name: maxCharsPerTranscript
+    type: string
+    description: Maximum number of transcript characters to inline per video
+    required: false
+    defaultValue: "12000"
+  - name: summaryOutput
+    type: string
+    description: Optional output markdown path for the generated summary
+    required: false
+steps:
+  - id: fetchTranscript
+    type: tool
+    toolName: youtube-transcript
+    outputKey: transcriptSummary
+    arguments:
+      input: ${input.input}
+      inputs: ${input.inputs}
+      inputsFile: ${input.inputsFile}
+      languages: ${input.languages}
+      outputDir: ${input.outputDir}
+      workers: ${input.workers}
+      retries: ${input.retries}
+      useCache: ${input.useCache}
+      includeTranscriptText: true
+      maxCharsPerTranscript: ${input.maxCharsPerTranscript}
+      dryRun: false
+  - id: summarize
+    type: tool
+    toolName: llm
+    outputKey: summary
+    arguments:
+      prompt: |
+        You are a concise analyst.
+        Based on the following YouTube transcript fetch result, summarize the central ideas.
+
+        Required output:
+        [Overview]
+        A short paragraph describing the overall theme.
+
+        [Main Ideas]
+        1. ...
+        2. ...
+        3. ...
+
+        [Per Video]
+        - <video id>: one short summary sentence
+
+        [Notes]
+        - Mention if any transcript was missing, truncated, or failed to load.
+        - Do not invent details that are not supported by the transcript text.
+        - If multiple videos are present, identify common themes across them.
+
+        Transcript fetch result:
+        ${transcriptSummary}

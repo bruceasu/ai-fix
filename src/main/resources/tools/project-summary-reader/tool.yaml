@@ -1,0 +1,12 @@
+name: project-summary-reader
+description: Read a project-summary.json file and return its content.
+autoExecuteAllowed: true
+tool:
+  type: builtin
+  command: project_summary_reader
+arguments:
+  - name: path
+    type: string
+    description: Path to project-summary.json
+    required: false
+    defaultValue: project-summary.json

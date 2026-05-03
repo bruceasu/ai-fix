@@ -1,0 +1,50 @@
+name: search-doc-and-explain
+description: Search documentation or error references, optionally fetch a page, and explain the result.
+autoExecuteAllowed: true
+arguments: []
+steps:
+  - id: search
+    type: tool
+    toolName: web-search
+    outputKey: searchResults
+    arguments:
+      query: ${input.query}
+      site: ${input.site}
+      limit: ${input.limit}
+  - id: page
+    type: tool
+    toolName: web-fetch
+    outputKey: pageContent
+    optional: true
+    arguments:
+      url: ${input.url}
+      maxChars: ${input.maxChars}
+  - id: explain
+    type: tool
+    toolName: llm
+    outputKey: explanation
+    arguments:
+      prompt: |
+        You are a developer assistant.
+        Based on the following search results, explain:
+        1. Which results are most worth opening
+        2. What questions those results are most likely to answer
+        3. If page content was provided, summarize the most useful confirmed information
+        4. What the next validation step should be
+
+        Requirements:
+        - Clearly distinguish "inferred from search results" from "confirmed by fetched page content"
+        - If page content is missing, do not invent page details
+        - Keep the output concise
+
+        User query:
+        ${input.query}
+
+        Site filter:
+        ${input.site}
+
+        Search results:
+        ${searchResults}
+
+        Fetched page content:
+        ${pageContent}

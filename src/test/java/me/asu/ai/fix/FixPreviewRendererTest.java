@@ -62,10 +62,15 @@ class FixPreviewRendererTest {
     void formatCandidateLineShouldHighlightMatchedTermsAndShowScore() {
         MethodInfo method = new MethodInfo();
         method.projectRoot = ".";
-        method.file = "src/main/java/me/asu/ai/fix/FixPreviewRenderer.java";
-        method.className = "FixPreviewRenderer";
-        method.methodName = "buildPreviewBlock";
-        method.signature = "buildPreviewBlock(MethodInfo,String)";
+        method.language = "python";
+        method.file = "src/main/python/demo/app.py";
+        method.packageName = "demo.app";
+        method.containerName = "demo.app";
+        method.className = "demo.app";
+        method.methodName = "build_preview_block";
+        method.symbolName = "build_preview_block";
+        method.symbolType = "function";
+        method.signature = "def build_preview_block(method, query):";
         method.beginLine = 10;
         method.endLine = 20;
 
@@ -74,8 +79,8 @@ class FixPreviewRendererTest {
 
         String line = renderer.formatCandidateLine(2, method, "preview block");
 
-        assertTrue(line.contains("2. Fix[[Preview]]Renderer#build[[Preview]][[Block]]"));
+        assertTrue(line.contains("2. demo.app#build_[[preview]]_[[block]]"));
         assertTrue(line.contains("score="));
-        assertTrue(line.contains("signature=build[[Preview]][[Block]](MethodInfo,String)"));
+        assertTrue(line.contains("signature=def build_[[preview]]_[[block]](method, query):"));
     }
 }

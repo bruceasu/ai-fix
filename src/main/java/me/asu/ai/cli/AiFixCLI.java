@@ -16,8 +16,10 @@ import java.util.stream.Collectors;
 import me.asu.ai.config.AppConfig;
 import me.asu.ai.fix.FixCliOptions;
 import me.asu.ai.fix.FixInteractiveSelector;
+import me.asu.ai.fix.FixSuggestionGenerator;
 import me.asu.ai.fix.FixTargetMatcher;
 import me.asu.ai.fix.GitWorktreeSupport;
+import me.asu.ai.knowledge.ProblemKnowledgeStore;
 import me.asu.ai.llm.LLMClient;
 import me.asu.ai.llm.LLMFactory;
 import me.asu.ai.model.MethodInfo;
@@ -62,9 +64,9 @@ public class AiFixCLI {
         List<MethodInfo> targets = matcher.filterTargets(
                 index,
                 options.matchQuery,
-                options.methodName,
+                options.symbolName != null ? options.symbolName : options.methodName,
                 options.packageFilter,
-                options.classFilter,
+                options.containerFilter != null ? options.containerFilter : options.classFilter,
                 options.fileFilter,
                 options.callFilter,
                 options.annotationFilter);
@@ -102,26 +104,41 @@ public class AiFixCLI {
                 options.dryRun,
                 config,
                 projectSummary);
+        FixSuggestionGenerator suggestionGenerator = new FixSuggestionGenerator(llm, config, projectSummary);
+        ProblemKnowledgeStore knowledgeStore = new ProblemKnowledgeStore(config);
 
         int success = 0;
         List<String> successList = new ArrayList<>();
         List<String> failedList = new ArrayList<>();
         boolean shouldPopStash = false;
+        boolean suggestionOnlyMode = options.suggestOnly;
         try {
-            if (!options.dryRun) {
+            boolean isGitRepo = git.isGitRepo();
+            if (!options.dryRun && !options.suggestOnly && isGitRepo) {
+                if (git.hasUncommittedChanges()) {
+                    System.out.println("Detected uncommitted files in the current Git branch.");
+                    System.out.println("Please commit or stash your changes before allowing automatic modification.");
+                    System.out.println("Fallback: switch to suggestion-only mode for this run.");
+                    options.dryRun = true;
+                    suggestionOnlyMode = true;
+                }
+            }
+
+            if (!options.dryRun && !suggestionOnlyMode) {
                 git.ensureGitRepo();
                 if (options.useStash) {
                     git.autoStash();
                     shouldPopStash = true;
-                } else {
-                    git.ensureWorkingTreeClean();
                 }
                 if (options.branch == null) {
                     options.branch = defaultBranchName();
                 }
                 git.checkoutNewBranch(options.branch);
-            } else {
+                System.out.println("Using branch: " + options.branch);
+            } else if (isGitRepo) {
                 git.ensureGitRepo();
+            } else if (suggestionOnlyMode) {
+                System.out.println("Git repository was not available; returning suggestions only.");
             }
 
             if (options.commitMessage == null) {
@@ -131,16 +148,27 @@ public class AiFixCLI {
             for (MethodInfo target : targets) {
                 System.out.println("\n=== Processing: " + target.methodName + " ===");
 
+                if (suggestionOnlyMode) {
+                    String suggestion = suggestionGenerator.generate(options.task, target);
+                    success++;
+                    successList.add(target.methodName);
+                    System.out.println(suggestion);
+                    knowledgeStore.recordFixSuggestion(options.task, target, suggestion);
+                    continue;
+                }
+
                 PatchRetryExecutor.PatchResult result = executor.execute(options.task, target);
 
                 if (result.success()) {
                     success++;
                     successList.add(result.methodName());
                     System.out.println("Applied: " + result.patchFile());
+                    knowledgeStore.recordFixExecution(options.task, target, true, "", options.branch, result.patchFile());
                 } else {
                     failedList.add(result.methodName());
                     System.out.println("Failed: " + result.methodName());
                     System.out.println(result.error());
+                    knowledgeStore.recordFixExecution(options.task, target, false, result.error(), options.branch);
                 }
             }
 
@@ -155,6 +183,9 @@ public class AiFixCLI {
 
         System.out.println("\nSuccess: " + successList);
         System.out.println("Failed: " + failedList);
+        if (suggestionOnlyMode) {
+            System.out.println("Result mode: suggestion-only (no working tree files were modified).");
+        }
     }
 
     public static void printUsage() {
@@ -166,8 +197,10 @@ public class AiFixCLI {
                   --task <text>               Describe the change; omit or use - to enter interactively
                   --match <words>             Fuzzy match package/class/method/file words
                   --method <methodName>       Filter by method name or fragment
+                  --symbol <symbolName>       Filter by language-neutral symbol name or fragment
                   --package <packageName>     Filter by package name or fragment
                   --class <className>         Filter by class name or fragment
+                  --container <name>          Filter by language-neutral container/module/class name
                   --file <pathFragment>       Filter by source file path fragment
                   --call <methodCallName>     Filter by called method name
                   --annotation <annotation>   Filter by annotation name
@@ -181,11 +214,17 @@ public class AiFixCLI {
                   --config <path>             Load an explicit config file
                   --project-summary <path>    Load project summary context JSON
                   --no-select                 Do not prompt when multiple methods match
+                  --suggest-only              Generate structured repair advice only, never modify files
                   --print-config              Print resolved config and exit
                   --dry-run                   Generate patch only, do not apply
                   --stash                     Auto-stash local changes before applying
                   --help                      Show this help
                   --config-debug              Print config loading summary
+
+                Git behavior:
+                  - when inside a Git repository and the working tree is clean, fix auto-creates a new branch before modifying files
+                  - when uncommitted files are detected, fix does not modify the working tree and falls back to suggestion-only mode
+                  - suggestion-only mode prints structured repair advice instead of applying a patch
 
                 Interactive selection:
                   When multiple methods match, you can:

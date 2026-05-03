@@ -1,0 +1,31 @@
+name: project-summary-and-explain
+description: Read project-summary.json and generate a concise developer-oriented explanation.
+autoExecuteAllowed: true
+arguments: []
+steps:
+  - id: summaryFile
+    type: tool
+    toolName: project-summary-reader
+    outputKey: summaryJson
+    arguments:
+      path: ${input.path}
+  - id: explain
+    type: tool
+    toolName: llm
+    outputKey: explanation
+    arguments:
+      prompt: |
+        You are a senior developer assistant.
+        Read the following project-summary.json and explain:
+        1. What kind of project this is
+        2. Its likely main responsibilities
+        3. The most important modules or entry points
+        4. Where a new engineer should start reading
+
+        Requirements:
+        - Write for developers
+        - Keep the output concise and clear
+        - Do not invent facts not present in the summary
+
+        project-summary.json:
+        ${summaryJson}

@@ -1,0 +1,6 @@
+bin
+*.exe
+*.dll
+bin/psql-go
+bin/psql-go.exe
+pgpass.conf

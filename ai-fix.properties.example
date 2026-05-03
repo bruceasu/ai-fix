@@ -1,16 +1,22 @@
-#provider=openai
-#model=gpt-5-nano
-
 provider=groq
 model=llama-3.1-8b-instant
-
-openai.api.key=your_openai_key
-openai.base.url=https://api.openai.com/v1
 
 groq.api.key=your_groq_key
 groq.base.url=https://api.groq.com/openai/v1
 
+openai.api.key=
+openai.base.url=https://api.openai.com/v1
+
 ollama.base.url=http://localhost:11434
+
+app.home=C:/Users/yourname/.config/ai-fix
+tools.dir=C:/Users/yourname/.config/ai-fix/tools
+skills.dir=C:/Users/yourname/.config/ai-fix/skills
+sessions.dir=C:/Users/yourname/.config/ai-fix/sessions
+knowledge.dir=C:/Users/yourname/.config/ai-fix/knowledge
+
+# Repository-local example for this workspace:
+# tools.dir=D:/03_projects/suk/ai-fix/workspace/tools
 
 prompt.template.file=ai-fix-prompt.txt
 prompt.fix-template.file=ai-fix-prompt-fix.txt

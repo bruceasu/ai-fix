@@ -26,13 +26,21 @@ public class MainCli {
 
         String[] forwardedArgs = Arrays.copyOfRange(args, 1, args.length);
         switch (command) {
+            case "analyze" -> AiAnalyzeCLI.main(forwardedArgs);
             case "fix" -> AiFixCLI.main(forwardedArgs);
             case "index" -> IndexCli.main(forwardedArgs);
+            case "tool" -> ToolCli.main(forwardedArgs);
+            case "skill" -> SkillCli.main(forwardedArgs);
+            case "knowledge" -> KnowledgeCli.main(forwardedArgs);
+            case "generate-exe" -> GenerateExeCli.main(forwardedArgs);
+            case "chat" -> ChatCli.main(forwardedArgs);
             case "understand" -> AiUnderstandCLI.main(forwardedArgs);
             case "init" -> InitCli.main(forwardedArgs);
             default -> {
                 System.out.println("Unknown command: " + command);
-                printUsage();
+                System.out.println("Use 'help' to see available commands.");
+                // fall back to chat mode for unrecognized commands
+                ChatCli.main(forwardedArgs);
             }
         }
     }
@@ -43,8 +51,14 @@ public class MainCli {
 
     private static void printCommandUsage(String command) {
         switch (command) {
+            case "analyze" -> AiAnalyzeCLI.printUsage();
             case "fix" -> AiFixCLI.printUsage();
             case "index" -> IndexCli.printUsage();
+            case "tool" -> ToolCli.printUsage();
+            case "skill" -> SkillCli.printUsage();
+            case "knowledge" -> KnowledgeCli.printUsage();
+            case "generate-exe" -> GenerateExeCli.printUsage();
+            case "chat" -> ChatCli.printUsage();
             case "understand" -> AiUnderstandCLI.printUsage();
             case "init" -> InitCli.printUsage();
             default -> printUsage();
@@ -55,13 +69,25 @@ public class MainCli {
         System.out.println("""
                 Usage:
                   java -jar ai-fix-<version>.jar fix --task "<task>" [options]
+                  java -jar ai-fix-<version>.jar analyze [text] [options]
                   java -jar ai-fix-<version>.jar index [source-root]
+                  java -jar ai-fix-<version>.jar tool <subcommand> [options]
+                  java -jar ai-fix-<version>.jar skill <subcommand> [options]
+                  java -jar ai-fix-<version>.jar knowledge <subcommand> [options]
+                  java -jar ai-fix-<version>.jar generate-exe [options]
+                  java -jar ai-fix-<version>.jar chat [options]
                   java -jar ai-fix-<version>.jar understand [source-root] [options]
                   java -jar ai-fix-<version>.jar init
 
                 Commands:
+                  analyze     Analyze logs, exceptions, or test output
                   fix         Run AI patch generation and application flow
                   index       Build index.json from Java source files
+                  tool        List or run registered tools
+                  skill       List or run registered skills
+                  knowledge   Browse recorded problem categories and repair experience
+                  generate-exe Export a fixed workflow package from one skill
+                  chat        Start an interactive AI session
                   understand  Generate project understanding report and summary
                   init        Interactively create config and prompt files
 

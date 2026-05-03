@@ -1,0 +1,6 @@
+bin
+*.exe
+*.dll
+bin/mysql-go
+bin/mysql-go.exe
+my.cnf

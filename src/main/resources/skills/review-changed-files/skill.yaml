@@ -1,0 +1,27 @@
+name: review-changed-files
+description: Review current git changes and report bugs, risks, regressions, and missing tests.
+autoExecuteAllowed: true
+arguments: []
+steps:
+  - id: changes
+    type: tool
+    toolName: git-diff-reader
+    outputKey: changes
+    arguments: {}
+  - id: review
+    type: tool
+    toolName: llm
+    outputKey: review
+    arguments:
+      prompt: |
+        You are a code review assistant.
+        Review the following git diff and prioritize findings over summary.
+
+        Requirements:
+        - Focus on bugs, risks, regressions, and missing tests
+        - If you find no issues, say so explicitly and mention residual risks
+        - Keep the output concise and ordered by severity
+        - Do not modify code or run deployment actions
+
+        Git changes:
+        ${changes}

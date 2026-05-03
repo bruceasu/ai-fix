@@ -1,0 +1,31 @@
+name: explain-project-structure
+description: Read project-summary.json and explain the project structure for developers.
+autoExecuteAllowed: true
+arguments: []
+steps:
+  - id: summaryJson
+    type: tool
+    toolName: project-summary-reader
+    outputKey: summaryJson
+    arguments:
+      path: ${input.path}
+  - id: explanation
+    type: tool
+    toolName: llm
+    outputKey: explanation
+    arguments:
+      prompt: |
+        You are a senior developer assistant.
+        Based on the following project-summary.json, explain the project structure for developers:
+        1. Main layers or modules
+        2. Key packages, components, and dependency relationships
+        3. Which directories are the best place to start reading
+        4. What context matters most before changing code
+
+        Requirements:
+        - Use only the provided summary data
+        - Do not invent missing structure
+        - Keep the output concise and clear
+
+        project-summary.json:
+        ${summaryJson}

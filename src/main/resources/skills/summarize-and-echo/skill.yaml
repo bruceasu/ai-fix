@@ -1,0 +1,19 @@
+name: summarize-and-echo
+description: Generate a short AI summary and pass it to a builtin echo tool.
+autoExecuteAllowed: true
+arguments: []
+steps:
+  - id: summary
+    type: tool
+    toolName: llm
+    outputKey: summary
+    arguments:
+      prompt: |
+        Summarize the following request in one short sentence: ${input.text}
+  - id: echo
+    type: tool
+    toolName: echo-tool
+    outputKey: echoOutput
+    arguments:
+      prefix: "Skill output: "
+      text: ${summary}

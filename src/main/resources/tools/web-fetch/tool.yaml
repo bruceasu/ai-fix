@@ -1,0 +1,16 @@
+name: web-fetch
+description: Fetch the content of a web page for documentation or error analysis.
+autoExecuteAllowed: true
+tool:
+  type: builtin
+  command: web_fetch
+arguments:
+  - name: url
+    type: string
+    description: Target URL
+    required: true
+  - name: maxChars
+    type: number
+    description: Maximum number of characters to keep
+    required: false
+    defaultValue: "8000"

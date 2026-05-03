@@ -1,0 +1,7 @@
+name: git-diff-reader
+description: Read git status and diff for code review or change analysis.
+autoExecuteAllowed: true
+tool:
+  type: builtin
+  command: git_diff_reader
+arguments: []

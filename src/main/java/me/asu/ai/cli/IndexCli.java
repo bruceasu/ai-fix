@@ -1,67 +1,28 @@
 package me.asu.ai.cli;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.javaparser.*;
-import com.github.javaparser.ast.*;
-import com.github.javaparser.ast.body.*;
-import com.github.javaparser.ast.expr.MethodCallExpr;
-
 import java.io.File;
-import java.nio.file.*;
-import java.util.*;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.List;
+import me.asu.ai.analyze.ProjectLanguage;
+import me.asu.ai.analyze.ProjectLanguageDetector;
+import me.asu.ai.index.JavaProjectIndexer;
+import me.asu.ai.index.ProjectIndexer;
+import me.asu.ai.index.ProjectIndexerFactory;
 import me.asu.ai.model.MethodInfo;
 
 public class IndexCli {
 
-    static {
-        StaticJavaParser.getParserConfiguration()
-                .setLanguageLevel(ParserConfiguration.LanguageLevel.BLEEDING_EDGE);
+    public static List<MethodInfo> build(Path root) throws Exception {
+        ProjectLanguage language = ProjectLanguageDetector.detect(root);
+        ProjectIndexer indexer = ProjectIndexerFactory.create(language);
+        return indexer.build(root);
     }
 
-    public static List<MethodInfo> build(Path root) throws Exception {
-        Path normalizedRoot = root.toAbsolutePath().normalize();
-        List<MethodInfo> list = new ArrayList<>();
-
-        Files.walk(normalizedRoot)
-                .filter(p -> p.toString().endsWith(".java"))
-                .forEach(p -> {
-                    try {
-                        CompilationUnit cu = StaticJavaParser.parse(p);
-
-                        cu.findAll(ClassOrInterfaceDeclaration.class).forEach(cls -> {
-                            cls.findAll(MethodDeclaration.class).forEach(m -> {
-                                MethodInfo info = new MethodInfo();
-                                info.projectRoot = ".";
-                                info.file = normalizedRoot.relativize(p.toAbsolutePath().normalize()).toString();
-                                info.className = cls.getNameAsString();
-                                info.methodName = m.getNameAsString();
-                                info.signature = m.getDeclarationAsString();
-
-                                info.annotations = new ArrayList<>();
-                                m.getAnnotations().forEach(a ->
-                                        info.annotations.add(a.getNameAsString())
-                                );
-
-                                info.calls = new ArrayList<>();
-                                m.findAll(MethodCallExpr.class).forEach(call ->
-                                        info.calls.add(call.getNameAsString())
-                                );
-
-                                m.getRange().ifPresent(r -> {
-                                    info.beginLine = r.begin.line;
-                                    info.endLine = r.end.line;
-                                });
-
-                                list.add(info);
-                            });
-                        });
-
-                    } catch (Exception e) {
-                        System.out.println("Parse failed: " + p + " - " + e.getMessage());
-                    }
-                });
-
-        return list;
+    public static List<MethodInfo> build(Path root, ProjectLanguage language) throws Exception {
+        ProjectIndexer indexer = ProjectIndexerFactory.create(language);
+        return indexer.build(root);
     }
 
     public static void main(String[] args) throws Exception {
@@ -69,8 +30,11 @@ public class IndexCli {
             printUsage();
             return;
         }
-        Path root = Paths.get(args.length > 0 ? args[0] : ".");
-        List<MethodInfo> index = build(root);
+        String languageOption = findOptionValue(args, "--language");
+        Path root = Paths.get(findSourceRoot(args));
+        ProjectLanguage language = ProjectLanguageDetector.parseOrDetect(languageOption, root);
+        System.out.println("Detected language: " + language.name().toLowerCase());
+        List<MethodInfo> index = build(root, language);
 
         ObjectMapper mapper = new ObjectMapper();
         mapper.writerWithDefaultPrettyPrinter()
@@ -85,9 +49,10 @@ public class IndexCli {
                   java -jar ai-fix-<version>.jar index [source-root]
 
                 Description:
-                  Scan Java source files and generate index.json in the current working directory.
+                  Scan Java, Go, or Python source files and generate index.json in the current working directory.
 
                 Options:
+                  --language <name>         auto | java | go | python
                   --help   Show this help
                 """);
     }
@@ -99,5 +64,27 @@ public class IndexCli {
             }
         }
         return false;
+    }
+
+    private static String findOptionValue(String[] args, String optionName) {
+        for (int i = 0; i < args.length - 1; i++) {
+            if (optionName.equals(args[i])) {
+                return args[i + 1];
+            }
+        }
+        return null;
+    }
+
+    private static String findSourceRoot(String[] args) {
+        for (int i = 0; i < args.length; i++) {
+            if ("--language".equals(args[i])) {
+                i++;
+                continue;
+            }
+            if (!args[i].startsWith("--")) {
+                return args[i];
+            }
+        }
+        return ".";
     }
 }

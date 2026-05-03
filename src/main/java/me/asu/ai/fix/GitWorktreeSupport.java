@@ -4,20 +4,32 @@ import java.nio.charset.StandardCharsets;
 
 public class GitWorktreeSupport {
 
+    public boolean isGitRepo() {
+        try {
+            runCommand("git", "rev-parse", "--is-inside-work-tree");
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     public void ensureGitRepo() throws Exception {
         runCommand("git", "rev-parse", "--is-inside-work-tree");
     }
 
-    public void ensureWorkingTreeClean() throws Exception {
+    public boolean hasUncommittedChanges() throws Exception {
         String status = runCommandCapture("git", "status", "--porcelain");
-        if (!status.isBlank()) {
+        return !status.isBlank();
+    }
+
+    public void ensureWorkingTreeClean() throws Exception {
+        if (hasUncommittedChanges()) {
             throw new RuntimeException("Working tree not clean. Use --stash");
         }
     }
 
     public void autoStash() throws Exception {
-        String status = runCommandCapture("git", "status", "--porcelain");
-        if (!status.isBlank()) {
+        if (hasUncommittedChanges()) {
             runCommand("git", "stash", "push", "-u", "-m", "ai-fix-auto");
         }
     }

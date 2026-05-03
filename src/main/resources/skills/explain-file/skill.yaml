@@ -1,0 +1,35 @@
+name: explain-file
+description: Read a file and explain its purpose, structure, and key risks.
+autoExecuteAllowed: true
+arguments: []
+steps:
+  - id: fileContent
+    type: tool
+    toolName: read-file
+    outputKey: fileContent
+    arguments:
+      path: ${input.path}
+      maxChars: ${input.maxChars}
+  - id: explanation
+    type: tool
+    toolName: llm
+    outputKey: explanation
+    arguments:
+      prompt: |
+        You are a senior developer assistant.
+        Read the following file content and explain:
+        1. The file's main responsibility
+        2. Key structures, functions, or classes
+        3. Important risks or complexity points
+        4. What a new engineer should read next before changing it
+
+        Requirements:
+        - Write for developers
+        - Keep the output concise
+        - Do not invent facts not present in the file content
+
+        File path:
+        ${input.path}
+
+        File content:
+        ${fileContent}

@@ -10,8 +10,10 @@ public class FixCliOptions {
     public String task;
     public String matchQuery = "";
     public String methodName;
+    public String symbolName;
     public String packageFilter;
     public String classFilter;
+    public String containerFilter;
     public String fileFilter;
     public String callFilter;
     public String annotationFilter;
@@ -29,6 +31,7 @@ public class FixCliOptions {
     public boolean noSelect = false;
     public boolean printConfigOnly = false;
     public boolean useStash = false;
+    public boolean suggestOnly = false;
 
     public static FixCliOptions parse(String[] args, AppConfig config) {
         FixCliOptions options = new FixCliOptions();
@@ -40,8 +43,10 @@ public class FixCliOptions {
                 case "--task" -> options.task = args[++i];
                 case "--match" -> options.matchQuery = options.matchQuery + " " + args[++i];
                 case "--method" -> options.methodName = args[++i];
+                case "--symbol" -> options.symbolName = args[++i];
                 case "--package" -> options.packageFilter = args[++i];
                 case "--class" -> options.classFilter = args[++i];
+                case "--container" -> options.containerFilter = args[++i];
                 case "--file" -> options.fileFilter = args[++i];
                 case "--call" -> options.callFilter = args[++i];
                 case "--annotation" -> options.annotationFilter = args[++i];
@@ -55,6 +60,7 @@ public class FixCliOptions {
                 case "--project-summary" -> options.projectSummaryPath = args[++i];
                 case "--config" -> i++;
                 case "--dry-run" -> options.dryRun = true;
+                case "--suggest-only" -> options.suggestOnly = true;
                 case "--no-select" -> options.noSelect = true;
                 case "--print-config" -> options.printConfigOnly = true;
                 case "--stash" -> options.useStash = true;

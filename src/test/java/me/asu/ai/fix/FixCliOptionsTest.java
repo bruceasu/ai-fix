@@ -16,13 +16,16 @@ class FixCliOptionsTest {
                 "--task", "refine retry",
                 "--match", "order service",
                 "--method", "createOrder",
+                "--symbol", "build_report",
                 "--class", "OrderService",
+                "--container", "order.service",
                 "--limit", "5",
                 "--page-size", "12",
                 "--preview-lines", "8",
                 "--provider", "groq",
                 "--model", "llama-x",
                 "--project-summary", "project-summary.json",
+                "--suggest-only",
                 "--dry-run",
                 "--no-select",
                 "--print-config",
@@ -34,13 +37,16 @@ class FixCliOptionsTest {
         assertEquals("refine retry", options.task);
         assertEquals("order service", options.matchQuery.trim());
         assertEquals("createOrder", options.methodName);
+        assertEquals("build_report", options.symbolName);
         assertEquals("OrderService", options.classFilter);
+        assertEquals("order.service", options.containerFilter);
         assertEquals(5, options.limit);
         assertEquals(12, options.pageSize);
         assertEquals(8, options.previewLines);
         assertEquals("groq", options.provider);
         assertEquals("llama-x", options.model);
         assertEquals("project-summary.json", options.projectSummaryPath);
+        assertTrue(options.suggestOnly);
         assertTrue(options.dryRun);
         assertTrue(options.noSelect);
         assertTrue(options.printConfigOnly);

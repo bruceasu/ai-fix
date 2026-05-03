@@ -45,7 +45,7 @@ public class PatchRetryExecutor {
 
     public PatchResult execute(String task, MethodInfo target) {
         try {
-            String originalCode = CodeLoader.loadMethod(target, config);
+            String originalCode = CodeLoader.loadSymbol(target, config);
             String prompt = buildInitialPrompt(task, target, originalCode);
 
             String lastDiff = "";
@@ -59,7 +59,7 @@ public class PatchRetryExecutor {
                 if (attempt == 1) {
                     diff = llm.generate(prompt);
                 } else {
-                    String latestCode = CodeLoader.loadMethod(target, config);
+                    String latestCode = CodeLoader.loadSymbol(target, config);
                     String fixPrompt = buildFixPrompt(task, target, latestCode, lastDiff, lastError);
                     diff = llm.generate(fixPrompt);
                 }
@@ -107,8 +107,9 @@ public class PatchRetryExecutor {
     private String buildInitialPrompt(String task, MethodInfo target, String code) {
         String template = config.getFileContent("prompt.template.file");
         if (template == null || template.isBlank()) {
+            String language = safe(target.language).isBlank() ? "source code" : target.language + " code";
             template = """
-                You are a senior Java engineer.
+                You are a senior %s engineer.
 
                 Task:
                 {task}
@@ -118,13 +119,14 @@ public class PatchRetryExecutor {
 
                 Target:
                 - File: {file}
-                - Class: {className}
-                - Method: {methodName}
+                - Container: {className}
+                - Symbol: {methodName}
+                - Symbol type: {symbolType}
                 - Signature: {signature}
                 - Lines: {beginLine}-{endLine}
 
                 Current code:
-                ```java
+                ```%s
                 {code}
                 ```
                 Rules:
@@ -138,7 +140,7 @@ public class PatchRetryExecutor {
                 Do not reformat unrelated code.
                 Preserve existing behavior outside the requested change.
                 Prefer the smallest possible patch that satisfies the task.
-                """;
+                """.formatted(language, fenceLanguage(target));
         }
         return prependAgentInstructions(applyTemplate(template, task, target, code, "", ""));
     }
@@ -151,8 +153,9 @@ public class PatchRetryExecutor {
             String error) {
         String template = config.getFileContent("prompt.fix-template.file");
         if (template == null || template.isBlank()) {
+            String language = safe(target.language).isBlank() ? "source code" : target.language + " code";
             template = """
-                You are fixing a failed git patch.
+                You are fixing a failed git patch for %s.
 
                 Original task:
                 {task}
@@ -163,13 +166,16 @@ public class PatchRetryExecutor {
                 Target:
 
                 File: {file}
-                Class: {className}
-                Method: {methodName}
+                Container: {className}
+                Symbol: {methodName}
+                Symbol type: {symbolType}
                 Signature: {signature}
 
                 Current latest code:
 
+                ```%s
                 {code}
+                ```
 
                 The previous patch failed to apply.
 
@@ -194,7 +200,7 @@ public class PatchRetryExecutor {
                 Keep the correction minimal and localized.
                 Do not expand the patch to unrelated methods or files.
                 Prefer fixing patch context over rewriting the whole method.
-                """;
+                """.formatted(language, fenceLanguage(target));
         }
         return prependAgentInstructions(applyTemplate(template, task, target, latestCode, failedDiff, error));
     }
@@ -212,6 +218,7 @@ public class PatchRetryExecutor {
                 .replace("{file}", safe(target.file))
                 .replace("{className}", safe(target.className))
                 .replace("{methodName}", safe(target.methodName))
+                .replace("{symbolType}", safe(target.symbolType))
                 .replace("{signature}", safe(target.signature))
                 .replace("{beginLine}", String.valueOf(target.beginLine))
                 .replace("{endLine}", String.valueOf(target.endLine))
@@ -371,10 +378,21 @@ public class PatchRetryExecutor {
     }
 
     private String patchFileName(MethodInfo target, int attempt) {
-        return "patch_" + sanitize(target.className)
-                + "_" + sanitize(target.methodName)
+        String container = target.containerName != null && !target.containerName.isBlank()
+                ? target.containerName
+                : target.className;
+        String symbol = target.symbolName != null && !target.symbolName.isBlank()
+                ? target.symbolName
+                : target.methodName;
+        return "patch_" + sanitize(container)
+                + "_" + sanitize(symbol)
                 + "_attempt" + attempt
                 + ".diff";
+    }
+
+    private String fenceLanguage(MethodInfo target) {
+        String language = safe(target.language);
+        return language.isBlank() ? "text" : language;
     }
 
     private String sanitize(String value) {

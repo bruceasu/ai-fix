@@ -19,7 +19,7 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 import me.asu.ai.model.ProjectSummary;
 
-public class JavaProjectAnalyzer {
+public class JavaProjectAnalyzer implements ProjectAnalyzer {
 
     static {
         StaticJavaParser.getParserConfiguration()
@@ -30,6 +30,7 @@ public class JavaProjectAnalyzer {
         Path normalizedRoot = root.toAbsolutePath().normalize();
         ProjectSummary summary = new ProjectSummary();
         summary.projectRoot = ".";
+        summary.primaryLanguage = "java";
         summary.projectName = normalizedRoot.getFileName() == null
                 ? normalizedRoot.toString()
                 : normalizedRoot.getFileName().toString();
@@ -45,6 +46,7 @@ public class JavaProjectAnalyzer {
             List<Path> javaFiles = paths
                     .filter(path -> path.toString().endsWith(".java"))
                     .collect(Collectors.toList());
+            summary.sourceFileCount = javaFiles.size();
             summary.javaFileCount = javaFiles.size();
 
             for (Path file : javaFiles) {

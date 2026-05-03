@@ -1,0 +1,26 @@
+name: index-symbol-reader
+description: Read a symbol from index.json and return its code context.
+autoExecuteAllowed: true
+tool:
+  type: builtin
+  command: index_symbol_reader
+arguments:
+  - name: symbol
+    type: string
+    description: Target symbol name
+    required: true
+  - name: container
+    type: string
+    description: Optional container name
+    required: false
+    defaultValue: ""
+  - name: indexPath
+    type: string
+    description: Path to index.json
+    required: false
+    defaultValue: index.json
+  - name: limit
+    type: number
+    description: Maximum number of candidates for ambiguous symbols
+    required: false
+    defaultValue: "5"

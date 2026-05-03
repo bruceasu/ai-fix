@@ -1,0 +1,22 @@
+name: command-index
+description: Bridge to the core index command logic and generate index.json from a source root.
+autoExecuteAllowed: true
+tool:
+  type: builtin
+  command: command_index
+arguments:
+  - name: sourceRoot
+    type: string
+    description: Project root to scan
+    required: false
+    defaultValue: .
+  - name: language
+    type: string
+    description: auto, java, go, or python
+    required: false
+    defaultValue: auto
+  - name: outputPath
+    type: string
+    description: Output path for index.json
+    required: false
+    defaultValue: index.json

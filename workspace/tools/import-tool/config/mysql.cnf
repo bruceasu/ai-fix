@@ -1,0 +1,5 @@
+[client]
+host=tangram-prd-mysql-replication-cluster.cluster-ro.fxtf.jp
+port=3306
+user=tanreader
+password=fjiQERnvorta256asdt

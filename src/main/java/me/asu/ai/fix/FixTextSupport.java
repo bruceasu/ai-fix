@@ -8,6 +8,9 @@ import me.asu.ai.model.MethodInfo;
 public class FixTextSupport {
 
     public String inferPackageName(MethodInfo method) {
+        if (method != null && method.packageName != null && !method.packageName.isBlank()) {
+            return method.packageName;
+        }
         if (method == null || method.file == null || method.file.isBlank()) {
             return "";
         }
@@ -21,6 +24,41 @@ public class FixTextSupport {
             return "";
         }
         return packagePath.substring(0, slashIndex).replace('/', '.');
+    }
+
+    public String displayContainer(MethodInfo method) {
+        if (method == null) {
+            return "";
+        }
+        if (method.containerName != null && !method.containerName.isBlank()) {
+            return method.containerName;
+        }
+        if (method.className != null && !method.className.isBlank()) {
+            return method.className;
+        }
+        return inferPackageName(method);
+    }
+
+    public String displaySymbol(MethodInfo method) {
+        if (method == null) {
+            return "";
+        }
+        if (method.symbolName != null && !method.symbolName.isBlank()) {
+            return method.symbolName;
+        }
+        return safe(method.methodName);
+    }
+
+    public String displayQualifiedTarget(MethodInfo method) {
+        String container = displayContainer(method);
+        String symbol = displaySymbol(method);
+        if (container.isBlank()) {
+            return symbol;
+        }
+        if (symbol.isBlank()) {
+            return container;
+        }
+        return container + "#" + symbol;
     }
 
     public List<String> splitTerms(String matchQuery) {

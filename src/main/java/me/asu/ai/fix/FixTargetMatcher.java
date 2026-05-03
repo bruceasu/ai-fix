@@ -24,7 +24,7 @@ public class FixTargetMatcher {
         if (methodName != null) {
             String finalMethodName = methodName;
             targets = targets.stream()
-                    .filter(m -> containsIgnoreCase(m.methodName, finalMethodName))
+                    .filter(m -> containsIgnoreCase(textSupport.displaySymbol(m), finalMethodName))
                     .collect(Collectors.toList());
         }
 
@@ -38,7 +38,7 @@ public class FixTargetMatcher {
         if (classFilter != null) {
             String finalClassFilter = classFilter;
             targets = targets.stream()
-                    .filter(m -> containsIgnoreCase(m.className, finalClassFilter))
+                    .filter(m -> containsIgnoreCase(textSupport.displayContainer(m), finalClassFilter))
                     .collect(Collectors.toList());
         }
 
@@ -83,13 +83,14 @@ public class FixTargetMatcher {
 
     public int scoreMethod(MethodInfo method, List<String> terms) {
         String packageName = textSupport.inferPackageName(method).toLowerCase(Locale.ROOT);
-        String className = textSupport.safe(method.className).toLowerCase(Locale.ROOT);
-        String methodName = textSupport.safe(method.methodName).toLowerCase(Locale.ROOT);
+        String className = textSupport.safe(textSupport.displayContainer(method)).toLowerCase(Locale.ROOT);
+        String methodName = textSupport.safe(textSupport.displaySymbol(method)).toLowerCase(Locale.ROOT);
         String fileName = normalizePath(textSupport.safe(method.file)).toLowerCase(Locale.ROOT);
         String signature = textSupport.safe(method.signature).toLowerCase(Locale.ROOT);
+        String symbolType = textSupport.safe(method.symbolType).toLowerCase(Locale.ROOT);
         String annotations = joinLower(method.annotations);
         String calls = joinLower(method.calls);
-        String haystack = String.join(" ", packageName, className, methodName, fileName, signature, annotations, calls);
+        String haystack = String.join(" ", packageName, className, methodName, fileName, signature, symbolType, annotations, calls);
 
         int score = 0;
         for (String term : terms) {
