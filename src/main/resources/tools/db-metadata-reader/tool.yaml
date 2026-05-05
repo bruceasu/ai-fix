@@ -1,0 +1,24 @@
+name: db-metadata-reader
+description: Fetch database table metadata (columns, primary keys, indexes) using JDBC.
+autoExecuteAllowed: false
+tool:
+  type: builtin
+  command: db_metadata_reader
+arguments:
+  - name: url
+    type: string
+    description: JDBC connection URL (e.g., jdbc:mysql://localhost:3306/db)
+    required: true
+  - name: user
+    type: string
+    description: Database username
+    required: true
+  - name: password
+    type: string
+    description: Database password
+    required: false
+    defaultValue: ""
+  - name: table
+    type: string
+    description: Name of the table to inspect
+    required: true

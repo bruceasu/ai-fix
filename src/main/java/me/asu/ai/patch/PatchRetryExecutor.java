@@ -88,11 +88,17 @@ public class PatchRetryExecutor {
                 ApplyResult applyResult = tryApplyPatch(patchFile);
 
                 if (applyResult.success()) {
-                    return PatchResult.success(target.methodName, patchFile);
+                    VerifyResult verifyResult = tryVerify();
+                    if (verifyResult.ok()) {
+                        return PatchResult.success(target.methodName, patchFile);
+                    }
+                    lastError = "Patch applied but failed verification:\n" + verifyResult.error();
+                    tryRevertPatch(patchFile);
+                    System.out.println("Verification failed. Reverted patch and retrying if attempts remain.");
+                } else {
+                    lastError = applyResult.error();
+                    System.out.println("Patch application failed.");
                 }
-
-                lastError = applyResult.error();
-                System.out.println("Patch failed, entering debug retry if attempts remain.");
             }
 
             return PatchResult.failed(target.methodName, lastError);
@@ -100,6 +106,59 @@ public class PatchRetryExecutor {
         } catch (Exception e) {
             return PatchResult.failed(target.methodName, e.getMessage());
         }
+    }
+
+    private VerifyResult tryVerify() {
+        String[] buildCmd = detectBuildCommand();
+        if (buildCmd == null) {
+            System.out.println("No build tool detected (mvnw, mvn, jbuild). Skipping verification.");
+            return VerifyResult.succeeded();
+        }
+
+        try {
+            System.out.println("Verifying fix: running " + String.join(" ", buildCmd) + "...");
+            runCommand(buildCmd);
+            return VerifyResult.succeeded();
+        } catch (Exception e) {
+            return VerifyResult.failed(e.getMessage());
+        }
+    }
+
+    private void tryRevertPatch(String patchFile) {
+        try {
+            runCommand("git", "apply", "-R", patchFile);
+            System.out.println("Reverted patch: " + patchFile);
+        } catch (Exception e) {
+            System.err.println("Warning: failed to revert patch: " + patchFile + ". " + e.getMessage());
+        }
+    }
+
+    private String[] detectBuildCommand() {
+        boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
+
+        // 1. Maven Wrapper
+        String mvnw = isWindows ? "mvnw.cmd" : "./mvnw";
+        if (Files.exists(Paths.get(mvnw))) {
+            return isWindows
+                    ? new String[]{"cmd", "/c", mvnw, "clean", "compile"}
+                    : new String[]{mvnw, "clean", "compile"};
+        }
+
+        // 2. Global Maven (if pom.xml exists)
+        if (Files.exists(Paths.get("pom.xml"))) {
+            return isWindows
+                    ? new String[]{"cmd", "/c", "mvn", "clean", "compile"}
+                    : new String[]{"mvn", "clean", "compile"};
+        }
+
+        // 3. jbuild (if src exists)
+        if (Files.exists(Paths.get("src"))) {
+            return isWindows
+                    ? new String[]{"cmd", "/c", "jbuild"}
+                    : new String[]{"jbuild"};
+        }
+
+        return null;
     }
 
 
@@ -504,5 +563,15 @@ public class PatchRetryExecutor {
             return new PatchResult(false, methodName, "", error);
         }
 
+    }
+
+    private record VerifyResult(boolean ok, String error) {
+        static VerifyResult succeeded() {
+            return new VerifyResult(true, "");
+        }
+
+        static VerifyResult failed(String error) {
+            return new VerifyResult(false, error);
+        }
     }
 }

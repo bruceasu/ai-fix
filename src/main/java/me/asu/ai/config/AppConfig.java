@@ -15,7 +15,7 @@ import java.util.Properties;
 public class AppConfig {
 
     public static final String DEFAULT_PROVIDER = "openai";
-    public static final String DEFAULT_MODEL = "gpt-4.1";
+    public static final String DEFAULT_MODEL = "gpt-4o-mini";
     public static final String DEFAULT_GROQ_BASE_URL = "https://api.groq.com/openai/v1";
     public static final String DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434";
     public static final String APP_DIR_NAME = "ai-fix";

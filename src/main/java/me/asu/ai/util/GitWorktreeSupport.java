@@ -1,4 +1,4 @@
-package me.asu.ai.fix;
+package me.asu.ai.util;
 
 import java.nio.charset.StandardCharsets;
 

@@ -1,8 +1,6 @@
 package me.asu.ai.cli;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -11,31 +9,33 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Scanner;
+
 import java.util.stream.Collectors;
 import me.asu.ai.config.AppConfig;
 import me.asu.ai.fix.FixCliOptions;
 import me.asu.ai.fix.FixInteractiveSelector;
 import me.asu.ai.fix.FixSuggestionGenerator;
 import me.asu.ai.fix.FixTargetMatcher;
-import me.asu.ai.fix.GitWorktreeSupport;
 import me.asu.ai.knowledge.ProblemKnowledgeStore;
 import me.asu.ai.llm.LLMClient;
 import me.asu.ai.llm.LLMFactory;
 import me.asu.ai.model.MethodInfo;
 import me.asu.ai.model.ProjectSummary;
 import me.asu.ai.patch.PatchRetryExecutor;
+import me.asu.ai.util.GitWorktreeSupport;
+import me.asu.ai.util.JacksonUtils;
+import me.asu.ai.util.Utils;
 
 public class AiFixCLI {
 
     public static void main(String[] args) throws Exception {
-        if (containsHelpFlag(args)) {
+        if (Utils.containsHelpFlag(args)) {
             printUsage();
             return;
         }
-        String explicitConfigPath = findOptionValue(args, "--config");
+        String explicitConfigPath = Utils.findOptionValue(args, "--config");
         AppConfig config = AppConfig.load(explicitConfigPath);
-        if (isConfigDebugEnabled(config, args)) {
+        if (FixCliOptions.isConfigDebugEnabled(config, args)) {
             config.printDebugSummary();
         }
 
@@ -46,7 +46,7 @@ public class AiFixCLI {
             return;
         }
         if (options.task == null || options.task.isBlank() || "-".equals(options.task.trim())) {
-            options.task = readTaskInteractively();
+            options.task = Utils.readTaskInteractively();
         }
         if (options.task == null || options.task.isBlank()) {
             System.out.println("Task is required");
@@ -55,11 +55,9 @@ public class AiFixCLI {
 
         GitWorktreeSupport git = new GitWorktreeSupport();
         FixTargetMatcher matcher = new FixTargetMatcher();
-        ObjectMapper mapper = new ObjectMapper();
-        List<MethodInfo> index = mapper.readValue(
-                new File("index.json"),
-                new TypeReference<List<MethodInfo>>() {
-                });
+        List<MethodInfo> index = JacksonUtils.deserialize(
+                Files.newBufferedReader(Paths.get("index.json"), StandardCharsets.UTF_8),
+                new TypeReference<List<MethodInfo>>() { });
 
         List<MethodInfo> targets = matcher.filterTargets(
                 index,
@@ -94,7 +92,7 @@ public class AiFixCLI {
 
         System.out.println("Targets: " + targets.size());
 
-        ProjectSummary projectSummary = loadProjectSummary(options.projectSummaryPath, mapper);
+        ProjectSummary projectSummary = loadProjectSummary(options.projectSummaryPath);
         LLMClient llm = LLMFactory.create(options.provider, options.model, config);
 
         PatchRetryExecutor executor = new PatchRetryExecutor(
@@ -188,90 +186,9 @@ public class AiFixCLI {
         }
     }
 
+
     public static void printUsage() {
-        System.out.println("""
-                Usage:
-                  java -jar ai-fix-<version>.jar fix --task "<task>" [options]
-
-                Options:
-                  --task <text>               Describe the change; omit or use - to enter interactively
-                  --match <words>             Fuzzy match package/class/method/file words
-                  --method <methodName>       Filter by method name or fragment
-                  --symbol <symbolName>       Filter by language-neutral symbol name or fragment
-                  --package <packageName>     Filter by package name or fragment
-                  --class <className>         Filter by class name or fragment
-                  --container <name>          Filter by language-neutral container/module/class name
-                  --file <pathFragment>       Filter by source file path fragment
-                  --call <methodCallName>     Filter by called method name
-                  --annotation <annotation>   Filter by annotation name
-                  --limit <number>            Limit matched methods
-                  --page-size <number>        Interactive candidate count per page
-                  --preview-lines <number>    Candidate preview line count
-                  --branch <branchName>       Use a custom git branch
-                  --commit-message <message>  Use a custom git commit message
-                  --provider <provider>       openai | groq | ollama
-                  --model <modelName>         Override configured model
-                  --config <path>             Load an explicit config file
-                  --project-summary <path>    Load project summary context JSON
-                  --no-select                 Do not prompt when multiple methods match
-                  --suggest-only              Generate structured repair advice only, never modify files
-                  --print-config              Print resolved config and exit
-                  --dry-run                   Generate patch only, do not apply
-                  --stash                     Auto-stash local changes before applying
-                  --help                      Show this help
-                  --config-debug              Print config loading summary
-
-                Git behavior:
-                  - when inside a Git repository and the working tree is clean, fix auto-creates a new branch before modifying files
-                  - when uncommitted files are detected, fix does not modify the working tree and falls back to suggestion-only mode
-                  - suggestion-only mode prints structured repair advice instead of applying a patch
-
-                Interactive selection:
-                  When multiple methods match, you can:
-                  - enter numbers like 1 or 1,3 to choose candidates
-                  - enter * to choose all currently matched results
-                  - enter b to go back to the previous filtered list
-                  - enter n / p to move to the next / previous page
-                  - enter g <page> to jump to a specific page
-                  - enter q to quit without selecting
-                  - press Enter to use the first N matches
-                  - enter more words to narrow the list again
-                """);
-    }
-
-    private static String readTaskInteractively() {
-        Scanner scanner = new Scanner(System.in, StandardCharsets.UTF_8);
-        System.out.print("Enter task: ");
-        String line = scanner.nextLine();
-        return line == null ? null : line.trim();
-    }
-
-    private static boolean containsHelpFlag(String[] args) {
-        for (String arg : args) {
-            if ("--help".equals(arg) || "-h".equals(arg)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean isConfigDebugEnabled(AppConfig config, String[] args) {
-        for (String arg : args) {
-            if ("--config-debug".equals(arg)) {
-                return true;
-            }
-        }
-        return "true".equalsIgnoreCase(config.get("config.debug"))
-                || "1".equals(config.get("config.debug"));
-    }
-
-    private static String findOptionValue(String[] args, String optionName) {
-        for (int i = 0; i < args.length - 1; i++) {
-            if (optionName.equals(args[i])) {
-                return args[i + 1];
-            }
-        }
-        return null;
+        FixCliOptions.printUsage();
     }
 
     static String defaultBranchName() {
@@ -283,7 +200,7 @@ public class AiFixCLI {
         return "AI fix: " + task;
     }
 
-    private static ProjectSummary loadProjectSummary(String projectSummaryPath, ObjectMapper mapper) throws Exception {
+    private static ProjectSummary loadProjectSummary(String projectSummaryPath) throws Exception {
         Path path = projectSummaryPath == null || projectSummaryPath.isBlank()
                 ? Paths.get("project-summary.json")
                 : Paths.get(projectSummaryPath);
@@ -291,7 +208,7 @@ public class AiFixCLI {
         if (!Files.isRegularFile(normalized)) {
             return null;
         }
-        return mapper.readValue(normalized.toFile(), ProjectSummary.class);
+        return JacksonUtils.deserialize(normalized.toFile(), ProjectSummary.class);
     }
 
 }
