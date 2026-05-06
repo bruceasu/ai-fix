@@ -3,9 +3,11 @@ package me.asu.ai.cli;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -25,6 +27,9 @@ import me.asu.ai.tool.ToolCatalogService;
 import me.asu.ai.tool.ToolDefinition;
 import me.asu.ai.tool.ToolExecutionResult;
 import me.asu.ai.tool.ToolExecutor;
+import me.asu.ai.model.ProjectSummary;
+import me.asu.ai.util.ContextSurgerySupport;
+import me.asu.ai.util.JacksonUtils;
 import org.jline.reader.Candidate;
 import org.jline.reader.Completer;
 import org.jline.reader.EndOfFileException;
@@ -44,8 +49,13 @@ public class ChatCli {
     private static final int RECENT_MESSAGE_LIMIT = 8;
     private static final int MAX_CONTEXT_MESSAGE_CHARS = 1600;
     private static final ObjectMapper JSON = new ObjectMapper();
+    private static ProjectSummary projectSummary;
 
     public static void main(String[] args) throws Exception {
+        fixWindowsConsole();
+        System.setOut(new PrintStream(System.out, true, StandardCharsets.UTF_8));
+        System.setErr(new PrintStream(System.err, true, StandardCharsets.UTF_8));
+
         String configPath = findOptionValue(args, "--config");
         AppConfig config = AppConfig.load(configPath);
         if (containsHelpFlag(args)) {
@@ -62,31 +72,36 @@ public class ChatCli {
         SkillOrchestrator orchestrator = new SkillOrchestrator(skillCatalog, toolExecutor, config);
         ProblemKnowledgeStore knowledgeStore = new ProblemKnowledgeStore(config);
         LLMClient llm = LLMFactory.create(provider, model, config);
+        projectSummary = loadProjectSummary(null);
 
         ChatSession session = new ChatSession("session-" + SESSION_FORMAT.format(LocalDateTime.now()));
         ChatSnapshotStore snapshotStore = new ChatSnapshotStore(config);
 
-        try (Terminal terminal = TerminalBuilder.builder().system(true).build()) {
+        try (Terminal terminal = TerminalBuilder.builder()
+                .system(true)
+                .encoding(StandardCharsets.UTF_8)
+                .build()) {
             LineReader reader = LineReaderBuilder.builder()
                     .terminal(terminal)
                     .completer(new ChatCompleter(toolCatalog, skillCatalog, snapshotStore))
                     .variable(LineReader.HISTORY_FILE, config.getSessionsDirectory().resolve(".chat-history"))
+                    .variable(LineReader.SECONDARY_PROMPT_PATTERN, "%P   ")
                     .build();
 
             printInfo(terminal, "Chat session started: " + session.name(), AttributedStyle.DEFAULT.foreground(AttributedStyle.GREEN));
             printInfo(terminal, "Commands: /help, /store <name>, /load <name>, /new-skill <name>, /exit", AttributedStyle.DEFAULT.foreground(AttributedStyle.YELLOW));
+            printInfo(terminal, "Multi-line: Use '\\' at end of line to continue, or just Enter for single line.", AttributedStyle.DEFAULT.foreground(AttributedStyle.CYAN));
 
             while (true) {
-                String line;
+                String input;
                 try {
-                    line = reader.readLine(buildPrompt(session));
+                    input = readMultiLine(reader, buildPrompt(session));
                 } catch (UserInterruptException e) {
                     continue;
                 } catch (EndOfFileException e) {
                     break;
                 }
 
-                String input = line == null ? "" : line.trim();
                 if (input.isEmpty()) {
                     continue;
                 }
@@ -312,6 +327,22 @@ public class ChatCli {
             List<SkillDefinition> skills,
             ProblemKnowledgeStore knowledgeStore) {
         String knowledgeContext = buildRepairKnowledgeContext(session, knowledgeStore);
+        String projectContext = "";
+        if (projectSummary != null) {
+            String lastUserMsg = session.messages().stream()
+                    .filter(m -> m.role.equals("user"))
+                    .reduce((first, second) -> second)
+                    .map(m -> m.content)
+                    .orElse("");
+            ProjectSummary slimmed = ContextSurgerySupport.performSurgery(projectSummary, lastUserMsg);
+            try {
+                projectContext = "Project Context (filtered blueprint):\n" + 
+                        JSON.writerWithDefaultPrettyPrinter().writeValueAsString(slimmed);
+            } catch (Exception e) {
+                projectContext = "Project summary available but failed to filter.";
+            }
+        }
+
         return """
                 You are the interactive ai-fix developer assistant.
                 You can:
@@ -365,12 +396,16 @@ public class ChatCli {
                 Relevant local repair knowledge:
                 %s
 
+                Project Context:
+                %s
+
                 Conversation:
                 %s
                 """.formatted(
                 tools.stream().map(tool -> "- " + tool.name).reduce("", (a, b) -> a.isEmpty() ? b : a + "\n" + b),
                 skills.stream().map(skill -> "- " + skill.name).reduce("", (a, b) -> a.isEmpty() ? b : a + "\n" + b),
                 knowledgeContext,
+                projectContext,
                 session.toTranscript());
     }
 
@@ -380,6 +415,21 @@ public class ChatCli {
             int step,
             ProblemKnowledgeStore knowledgeStore) {
         String knowledgeContext = buildRepairKnowledgeContext(session, knowledgeStore);
+        String projectContext = "";
+        if (projectSummary != null) {
+            String lastUserMsg = session.messages().stream()
+                    .filter(m -> m.role.equals("user"))
+                    .reduce((first, second) -> second)
+                    .map(m -> m.content)
+                    .orElse("");
+            ProjectSummary slimmed = ContextSurgerySupport.performSurgery(projectSummary, lastUserMsg);
+            try {
+                projectContext = "Project Context (filtered blueprint):\n" + 
+                        JSON.writerWithDefaultPrettyPrinter().writeValueAsString(slimmed);
+            } catch (Exception e) {
+                projectContext = "Project summary available but failed to filter.";
+            }
+        }
         return """
                 You already have one tool or skill result.
                 Continue based on the conversation and the latest result.
@@ -390,6 +440,9 @@ public class ChatCli {
                 If the latest result contains [candidates], do not guess. Ask for a narrower container or file by returning one follow-up action only after the user gives more target details.
                 If you already have enough information, answer directly in Chinese and do not output another action.
 
+                Project Context:
+                %s
+
                 Conversation:
                 %s
 
@@ -398,8 +451,15 @@ public class ChatCli {
 
                 Latest action result:
                 %s
-                """.formatted(step, MAX_ACTION_STEPS, session.toTranscript(), knowledgeContext, actionResult);
+                """.formatted(
+                step,
+                MAX_ACTION_STEPS,
+                projectContext,
+                session.toTranscript(),
+                knowledgeContext,
+                actionResult);
     }
+
 
     static boolean containsCandidates(String actionResult) {
         return actionResult != null && actionResult.contains("[candidates]");
@@ -866,13 +926,44 @@ public class ChatCli {
     static final class ChatActionParser {
         private static final ObjectMapper YAML = new ObjectMapper(new YAMLFactory());
 
-        static ChatAction parse(String text) throws Exception {
-            String normalized = stripFence(text);
-            int actionIndex = normalized.indexOf("action:");
-            if (actionIndex < 0) {
-                return null;
+        static ChatAction parse(String text) {
+            if (text == null || text.isBlank()) return null;
+            
+            try {
+                String yaml = extractYaml(text);
+                if (yaml == null) return null;
+                
+                ChatAction action = YAML.readValue(yaml, ChatAction.class);
+                if (action != null && action.action() != null && !action.action().isBlank()) {
+                    return action;
+                }
+            } catch (Exception e) {
+                // Silently ignore parsing errors for conversational text
             }
-            return YAML.readValue(normalized.substring(actionIndex), ChatAction.class);
+            return null;
+        }
+
+        private static String extractYaml(String text) {
+            // Find ```yaml ... ```
+            int start = text.indexOf("```yaml");
+            if (start >= 0) {
+                int end = text.indexOf("```", start + 7);
+                if (end > start) {
+                    return text.substring(start + 7, end).trim();
+                }
+            }
+            
+            // Fallback: look for "action:" if not in a fence
+            int actionIndex = text.indexOf("action:");
+            if (actionIndex >= 0) {
+                // Find end of YAML block or end of text
+                int nextFence = text.indexOf("```", actionIndex);
+                if (nextFence > actionIndex) {
+                    return text.substring(actionIndex, nextFence).trim();
+                }
+                return text.substring(actionIndex).trim();
+            }
+            return null;
         }
     }
 
@@ -919,6 +1010,47 @@ public class ChatCli {
             skillCatalog.all().stream()
                     .map(skill -> "skill:" + skill.name)
                     .forEach(value -> candidates.add(new Candidate(value)));
+        }
+    }
+
+    private static String readMultiLine(LineReader reader, String prompt) {
+        StringBuilder sb = new StringBuilder();
+        String line = reader.readLine(prompt);
+        if (line == null) return "";
+        if (line.startsWith("/")) return line.trim();
+
+        sb.append(line);
+        while (line.endsWith("\\\\")) {
+            sb.setLength(sb.length() - 1);
+            sb.append("\n");
+            line = reader.readLine(">   ");
+            if (line == null) break;
+            sb.append(line);
+        }
+        return sb.toString().trim();
+    }
+
+    private static void fixWindowsConsole() {
+        if (System.getProperty("os.name").toLowerCase().contains("win")) {
+            try {
+                new ProcessBuilder("cmd", "/c", "chcp 65001").inheritIO().start().waitFor();
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    private static ProjectSummary loadProjectSummary(String projectSummaryPath) {
+        Path path = projectSummaryPath == null || projectSummaryPath.isBlank()
+                ? Paths.get("project-summary.json")
+                : Paths.get(projectSummaryPath);
+        Path normalized = path.toAbsolutePath().normalize();
+        if (!Files.isRegularFile(normalized)) {
+            return null;
+        }
+        try {
+            return JacksonUtils.deserialize(normalized.toFile(), ProjectSummary.class);
+        } catch (Exception e) {
+            return null;
         }
     }
 }

@@ -1,6 +1,7 @@
 package me.asu.ai.cli;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,6 +30,9 @@ import me.asu.ai.util.Utils;
 public class AiFixCLI {
 
     public static void main(String[] args) throws Exception {
+        System.setOut(new PrintStream(System.out, true, StandardCharsets.UTF_8));
+        System.setErr(new PrintStream(System.err, true, StandardCharsets.UTF_8));
+
         if (Utils.containsHelpFlag(args)) {
             printUsage();
             return;
@@ -101,7 +105,8 @@ public class AiFixCLI {
                 options.maxRetry,
                 options.dryRun,
                 config,
-                projectSummary);
+                projectSummary,
+                options.verifyCmd);
         FixSuggestionGenerator suggestionGenerator = new FixSuggestionGenerator(llm, config, projectSummary);
         ProblemKnowledgeStore knowledgeStore = new ProblemKnowledgeStore(config);
 

@@ -1,5 +1,7 @@
 package me.asu.ai.cli;
 
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import me.asu.ai.config.AppConfig;
 import me.asu.ai.tool.ToolCatalogService;
 import me.asu.ai.tool.ToolDefinition;
@@ -9,6 +11,9 @@ import me.asu.ai.tool.ToolExecutor;
 public class ToolCli {
 
     public static void main(String[] args) throws Exception {
+        System.setOut(new PrintStream(System.out, true, StandardCharsets.UTF_8));
+        System.setErr(new PrintStream(System.err, true, StandardCharsets.UTF_8));
+
         String configPath = findOptionValue(args, "--config");
         AppConfig config = AppConfig.load(configPath);
         ToolCatalogService catalog = new ToolCatalogService(config);

@@ -22,6 +22,7 @@ public class FixCliOptions {
     public String projectSummaryPath;
     public String provider;
     public String model;
+    public String verifyCmd;
 
     public int maxRetry = 2;
     public int limit = 3;
@@ -57,6 +58,7 @@ public class FixCliOptions {
                 case "--commit-message" -> options.commitMessage = args[++i];
                 case "--model" -> options.model = args[++i];
                 case "--provider" -> options.provider = args[++i];
+                case "--verify-cmd" -> options.verifyCmd = args[++i];
                 case "--project-summary" -> options.projectSummaryPath = args[++i];
                 case "--config" -> i++;
                 case "--dry-run" -> options.dryRun = true;
@@ -109,6 +111,7 @@ public class FixCliOptions {
                   --commit-message <message>  Use a custom git commit message
                   --provider <provider>       openai | groq | ollama
                   --model <modelName>         Override configured model
+                  --verify-cmd <command>      Override the default verification command
                   --config <path>             Load an explicit config file
                   --project-summary <path>    Load project summary context JSON
                   --no-select                 Do not prompt when multiple methods match

@@ -12,6 +12,7 @@ public class ProjectSummary {
     public List<String> buildFiles = new ArrayList<>();
     public int sourceFileCount;
     public int javaFileCount;
+    public int testFileCount;
     public int goFileCount;
     public int pythonFileCount;
     public int packageCount;
@@ -33,6 +34,13 @@ public class ProjectSummary {
     public List<ComponentSummary> services = new ArrayList<>();
     public List<ComponentSummary> repositories = new ArrayList<>();
     public List<ComponentSummary> configs = new ArrayList<>();
+    public List<ComponentSummary> coreLogic = new ArrayList<>();
+    public List<ComponentSummary> cliClasses = new ArrayList<>();
+
+    // Deep architectural metadata
+    public List<String> architecturalLayers = new ArrayList<>();
+    public List<DependencyLink> dependencies = new ArrayList<>();
+    public List<LogicFlow> logicFlows = new ArrayList<>();
 
     public static class ComponentSummary {
         public String file;
@@ -41,5 +49,17 @@ public class ProjectSummary {
         public String kind;
         public List<String> annotations = new ArrayList<>();
         public int methodCount;
+    }
+
+    public static class DependencyLink {
+        public String source;
+        public String target;
+        public String type; // e.g., "calls", "uses", "extends"
+    }
+
+    public static class LogicFlow {
+        public String name;
+        public List<String> steps = new ArrayList<>();
+        public String description;
     }
 }

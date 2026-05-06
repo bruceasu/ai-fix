@@ -14,6 +14,8 @@ public class MethodInfo {
     public String symbolType;
     public String methodName;
     public String signature;
+    public String javadoc;
+    public List<String> fields;
     public List<String> annotations;
     public List<String> calls;
     public int beginLine;

@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.lang.reflect.Method;
 import org.junit.jupiter.api.Test;
 
+import me.asu.ai.util.Utils;
+
 class AiFixCLITest {
 
     @Test
@@ -36,14 +38,10 @@ class AiFixCLITest {
     }
 
     private boolean invokeContainsHelpFlag(String... args) throws Exception {
-        Method method = AiFixCLI.class.getDeclaredMethod("containsHelpFlag", String[].class);
-        method.setAccessible(true);
-        return (boolean) method.invoke(null, (Object) args);
+        return Utils.containsHelpFlag(args);
     }
 
     private String invokeFindOptionValue(String[] args, String optionName) throws Exception {
-        Method method = AiFixCLI.class.getDeclaredMethod("findOptionValue", String[].class, String.class);
-        method.setAccessible(true);
-        return (String) method.invoke(null, args, optionName);
+        return Utils.findOptionValue(args, optionName);
     }
 }

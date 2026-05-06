@@ -26,6 +26,7 @@ public class PatchRetryExecutor {
     private final AppConfig config;
     private final ProjectSummary projectSummary;
     private final String agentInstructions;
+    private final String verifyCmd;
 
     public PatchRetryExecutor(
             LLMClient llm,
@@ -34,6 +35,17 @@ public class PatchRetryExecutor {
             boolean dryRun,
             AppConfig config,
             ProjectSummary projectSummary) {
+        this(llm, model, maxRetry, dryRun, config, projectSummary, null);
+    }
+
+    public PatchRetryExecutor(
+            LLMClient llm,
+            String model,
+            int maxRetry,
+            boolean dryRun,
+            AppConfig config,
+            ProjectSummary projectSummary,
+            String verifyCmd) {
         this.llm = llm;
         this.model = model;
         this.maxRetry = maxRetry;
@@ -41,6 +53,7 @@ public class PatchRetryExecutor {
         this.config = config;
         this.projectSummary = projectSummary;
         this.agentInstructions = loadAgentInstructions();
+        this.verifyCmd = verifyCmd;
     }
 
     public PatchResult execute(String task, MethodInfo target) {
@@ -136,22 +149,44 @@ public class PatchRetryExecutor {
     private String[] detectBuildCommand() {
         boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
 
-        // 1. Maven Wrapper
+        // 0. Explicit Override via --verify-cmd
+        if (verifyCmd != null && !verifyCmd.isBlank()) {
+            return isWindows
+                    ? new String[]{"cmd", "/c", verifyCmd}
+                    : new String[]{"sh", "-c", verifyCmd};
+        }
+
+        // 1. Project-specific Verification Scripts
+        String scriptDir = "scripts";
+        String verifySh = scriptDir + "/verify.sh";
+        String verifyBat = scriptDir + "/verify.bat";
+
+        if (isWindows && Files.exists(Paths.get(verifyBat))) {
+            return new String[]{"cmd", "/c", verifyBat};
+        }
+        if (Files.exists(Paths.get(verifySh))) {
+            // On Windows, if verify.sh exists, we assume a bash-like environment (git bash, WSL, etc.)
+            return isWindows 
+                    ? new String[]{"sh", "-c", verifySh}
+                    : new String[]{"./" + verifySh};
+        }
+
+        // 2. Maven Wrapper
         String mvnw = isWindows ? "mvnw.cmd" : "./mvnw";
         if (Files.exists(Paths.get(mvnw))) {
             return isWindows
-                    ? new String[]{"cmd", "/c", mvnw, "clean", "compile"}
-                    : new String[]{mvnw, "clean", "compile"};
+                    ? new String[]{"cmd", "/c", mvnw, "clean", "compile", "test"}
+                    : new String[]{mvnw, "clean", "compile", "test"};
         }
 
-        // 2. Global Maven (if pom.xml exists)
+        // 3. Global Maven (if pom.xml exists)
         if (Files.exists(Paths.get("pom.xml"))) {
             return isWindows
-                    ? new String[]{"cmd", "/c", "mvn", "clean", "compile"}
-                    : new String[]{"mvn", "clean", "compile"};
+                    ? new String[]{"cmd", "/c", "mvn", "clean", "compile", "test"}
+                    : new String[]{"mvn", "clean", "compile", "test"};
         }
 
-        // 3. jbuild (if src exists)
+        // 4. jbuild (if src exists)
         if (Files.exists(Paths.get("src"))) {
             return isWindows
                     ? new String[]{"cmd", "/c", "jbuild"}

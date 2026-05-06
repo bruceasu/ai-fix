@@ -17,7 +17,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
+import java.util.Collections;
 import me.asu.ai.model.ProjectSummary;
+import me.asu.ai.util.IgnoreFilter;
 
 public class JavaProjectAnalyzer implements ProjectAnalyzer {
 
@@ -37,19 +39,33 @@ public class JavaProjectAnalyzer implements ProjectAnalyzer {
 
         detectBuildFiles(normalizedRoot, summary);
 
-        Set<String> packageNames = new TreeSet<>();
-        Set<String> entryPoints = new LinkedHashSet<>();
-        Set<String> integrations = new TreeSet<>();
-        List<ProjectSummary.ComponentSummary> allClasses = new ArrayList<>();
+        Set<String> packageNames = Collections.synchronizedSet(new TreeSet<>());
+        Set<String> entryPoints = Collections.synchronizedSet(new LinkedHashSet<>());
+        Set<String> integrations = Collections.synchronizedSet(new TreeSet<>());
+        List<ProjectSummary.ComponentSummary> allClasses = Collections.synchronizedList(new ArrayList<>());
+        
+        IgnoreFilter filter = new IgnoreFilter(normalizedRoot);
 
         try (var paths = Files.walk(normalizedRoot)) {
-            List<Path> javaFiles = paths
+            List<Path> allJavaFiles = paths
                     .filter(path -> path.toString().endsWith(".java"))
                     .collect(Collectors.toList());
-            summary.sourceFileCount = javaFiles.size();
+            
+            List<Path> javaFiles = new ArrayList<>();
+            int testCount = 0;
+            for (Path p : allJavaFiles) {
+                if (filter.shouldIgnore(p) || isTestFile(p, normalizedRoot)) {
+                    testCount++;
+                } else {
+                    javaFiles.add(p);
+                }
+            }
+            
+            summary.sourceFileCount = allJavaFiles.size();
             summary.javaFileCount = javaFiles.size();
+            summary.testFileCount = testCount;
 
-            for (Path file : javaFiles) {
+            javaFiles.parallelStream().forEach(file -> {
                 try {
                     CompilationUnit cu = StaticJavaParser.parse(file);
                     String packageName = cu.getPackageDeclaration()
@@ -62,15 +78,18 @@ public class JavaProjectAnalyzer implements ProjectAnalyzer {
                     for (ClassOrInterfaceDeclaration declaration : cu.findAll(ClassOrInterfaceDeclaration.class)) {
                         ProjectSummary.ComponentSummary component = toComponent(normalizedRoot, file, packageName, declaration);
                         allClasses.add(component);
+                        collectDependencies(summary, cu, component);
 
-                        if (declaration.isInterface()) {
-                            summary.interfaceCount++;
-                        } else {
-                            summary.classCount++;
+                        synchronized (summary) {
+                            if (declaration.isInterface()) {
+                                summary.interfaceCount++;
+                            } else {
+                                summary.classCount++;
+                            }
+                            int methodCount = declaration.getMethods().size();
+                            summary.methodCount += methodCount;
+                            categorizeComponent(summary, component, declaration);
                         }
-
-                        int methodCount = declaration.getMethods().size();
-                        summary.methodCount += methodCount;
 
                         if (hasAnnotation(declaration, "SpringBootApplication")) {
                             entryPoints.add(component.className);
@@ -78,15 +97,15 @@ public class JavaProjectAnalyzer implements ProjectAnalyzer {
                         if (declaration.getMethods().stream().anyMatch(this::isMainMethod)) {
                             entryPoints.add(component.className + "#main");
                         }
-
-                        categorizeComponent(summary, component);
                     }
 
-                    summary.enumCount += cu.findAll(EnumDeclaration.class).size();
+                    synchronized (summary) {
+                        summary.enumCount += cu.findAll(EnumDeclaration.class).size();
+                    }
                 } catch (Exception e) {
                     System.out.println("Warning: parse failed for " + file + " - " + e.getMessage());
                 }
-            }
+            });
         }
 
         summary.packageCount = packageNames.size();
@@ -95,12 +114,23 @@ public class JavaProjectAnalyzer implements ProjectAnalyzer {
         summary.externalIntegrations = integrations.stream().limit(20).collect(Collectors.toList());
         summary.topClasses = allClasses.stream()
                 .sorted(Comparator.comparingInt((ProjectSummary.ComponentSummary c) -> c.methodCount).reversed())
-                .limit(10)
+                .limit(15)
                 .collect(Collectors.toList());
+        
         trimCategory(summary.controllers);
         trimCategory(summary.services);
         trimCategory(summary.repositories);
         trimCategory(summary.configs);
+        trimCategory(summary.cliClasses);
+        trimCategory(summary.coreLogic);
+        
+        // Identify layers (simplified)
+        if (summary.controllerCount > 0) summary.architecturalLayers.add("API/Controller Layer");
+        if (summary.serviceCount > 0) summary.architecturalLayers.add("Service Layer");
+        if (summary.repositoryCount > 0) summary.architecturalLayers.add("Repository/Persistence Layer");
+        if (!summary.cliClasses.isEmpty()) summary.architecturalLayers.add("CLI/Entry Layer");
+        if (!summary.coreLogic.isEmpty()) summary.architecturalLayers.add("Core Logic/Orchestration Layer");
+        
         return summary;
     }
 
@@ -124,25 +154,29 @@ public class JavaProjectAnalyzer implements ProjectAnalyzer {
     private void collectIntegrations(CompilationUnit cu, Set<String> integrations) {
         for (ImportDeclaration importDeclaration : cu.getImports()) {
             String name = importDeclaration.getNameAsString();
-            if (name.contains("feign")) {
-                integrations.add("Feign");
-            }
-            if (name.contains("kafka")) {
-                integrations.add("Kafka");
-            }
-            if (name.contains("redis")) {
-                integrations.add("Redis");
-            }
-            if (name.contains("jpa") || name.contains("mybatis")) {
-                integrations.add("Database");
-            }
-            if (name.contains("amqp") || name.contains("rabbit")) {
-                integrations.add("RabbitMQ");
-            }
-            if (name.contains("web.client") || name.contains("resttemplate") || name.contains("okhttp")) {
-                integrations.add("HTTP Client");
-            }
+            if (name.contains("feign")) integrations.add("Feign");
+            if (name.contains("kafka")) integrations.add("Kafka");
+            if (name.contains("redis")) integrations.add("Redis");
+            if (name.contains("jpa") || name.contains("mybatis")) integrations.add("Database");
+            if (name.contains("amqp") || name.contains("rabbit")) integrations.add("RabbitMQ");
+            if (name.contains("web.client") || name.contains("resttemplate") || name.contains("okhttp")) integrations.add("HTTP Client");
         }
+    }
+
+    private void collectDependencies(ProjectSummary summary, CompilationUnit cu, ProjectSummary.ComponentSummary component) {
+        cu.getImports().forEach(imp -> {
+            String name = imp.getNameAsString();
+            if (name.startsWith("me.asu.ai")) {
+                String targetClass = name.substring(name.lastIndexOf('.') + 1);
+                ProjectSummary.DependencyLink link = new ProjectSummary.DependencyLink();
+                link.source = component.className;
+                link.target = targetClass;
+                link.type = "imports";
+                synchronized (summary.dependencies) {
+                    summary.dependencies.add(link);
+                }
+            }
+        });
     }
 
     private ProjectSummary.ComponentSummary toComponent(
@@ -151,7 +185,7 @@ public class JavaProjectAnalyzer implements ProjectAnalyzer {
             String packageName,
             ClassOrInterfaceDeclaration declaration) {
         ProjectSummary.ComponentSummary component = new ProjectSummary.ComponentSummary();
-        component.file = root.relativize(file.toAbsolutePath().normalize()).toString();
+        component.file = root.relativize(file.toAbsolutePath().normalize()).toString().replace("\\", "/");
         component.packageName = packageName;
         component.className = declaration.getNameAsString();
         component.kind = declaration.isInterface() ? "interface" : "class";
@@ -160,7 +194,8 @@ public class JavaProjectAnalyzer implements ProjectAnalyzer {
         return component;
     }
 
-    private void categorizeComponent(ProjectSummary summary, ProjectSummary.ComponentSummary component) {
+    private void categorizeComponent(ProjectSummary summary, ProjectSummary.ComponentSummary component, ClassOrInterfaceDeclaration declaration) {
+        // Annotation-based
         if (component.annotations.contains("RestController") || component.annotations.contains("Controller")) {
             summary.controllerCount++;
             summary.controllers.add(component);
@@ -180,6 +215,14 @@ public class JavaProjectAnalyzer implements ProjectAnalyzer {
         if (component.annotations.contains("Component")) {
             summary.componentCount++;
         }
+
+        // Heuristic-based
+        String pkg = component.packageName.toLowerCase();
+        if (pkg.contains(".cli") || declaration.getMethods().stream().anyMatch(this::isMainMethod)) {
+            summary.cliClasses.add(component);
+        } else if (pkg.contains(".skill") || pkg.contains(".tool") || pkg.contains(".patch") || pkg.contains(".analyze") || pkg.contains(".fix")) {
+            summary.coreLogic.add(component);
+        }
     }
 
     private boolean hasAnnotation(ClassOrInterfaceDeclaration declaration, String annotation) {
@@ -191,6 +234,11 @@ public class JavaProjectAnalyzer implements ProjectAnalyzer {
         return method.isStatic()
                 && method.isPublic()
                 && method.getNameAsString().equals("main");
+    }
+
+    private boolean isTestFile(Path file, Path root) {
+        String relative = root.relativize(file.toAbsolutePath().normalize()).toString().replace("\\", "/");
+        return relative.contains("/test/") || relative.contains("/tests/") || file.getFileName().toString().endsWith("Test.java");
     }
 
     private void trimCategory(List<ProjectSummary.ComponentSummary> components) {

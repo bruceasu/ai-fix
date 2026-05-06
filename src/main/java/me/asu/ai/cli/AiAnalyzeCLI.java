@@ -1,6 +1,7 @@
 package me.asu.ai.cli;
 
 import java.io.IOException;
+import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import me.asu.ai.analyze.AnalyzeInputClassifier;
@@ -16,6 +17,9 @@ import me.asu.ai.llm.LLMFactory;
 public class AiAnalyzeCLI {
 
     public static void main(String[] args) throws Exception {
+        System.setOut(new PrintStream(System.out, true, StandardCharsets.UTF_8));
+        System.setErr(new PrintStream(System.err, true, StandardCharsets.UTF_8));
+
         if (containsHelpFlag(args)) {
             printUsage();
             return;
