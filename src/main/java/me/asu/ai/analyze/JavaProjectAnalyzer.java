@@ -18,17 +18,76 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.Collections;
+import me.asu.ai.model.MethodInfo;
 import me.asu.ai.model.ProjectSummary;
+import me.asu.ai.parse.JavaCodeParser;
 import me.asu.ai.util.IgnoreFilter;
 
-public class JavaProjectAnalyzer implements ProjectAnalyzer {
+/**
+ * JavaParser 后端的 Java 项目分析器。
+ *
+ * 使用 JavaParser 3.28.1 分析 Java 项目结构、统计信息、依赖关系等。
+ * 此类实现 {@link ProjectAnalyzer} 和 {@link JavaCodeParser} 接口，支持向后兼容和新的统一接口。
+ *
+ * @see JavaCodeParser
+ * @see ProjectAnalyzer
+ */
+public class JavaProjectAnalyzer implements ProjectAnalyzer, JavaCodeParser {
 
     static {
         StaticJavaParser.getParserConfiguration()
                 .setLanguageLevel(ParserConfiguration.LanguageLevel.BLEEDING_EDGE);
     }
 
+    /**
+     * 实现 ProjectAnalyzer 接口：分析项目。
+     * 此方法保留以支持向后兼容。
+     *
+     * @param root 项目根目录
+     * @return 项目分析总结
+     * @throws Exception 如果分析失败
+     */
+    @Override
     public ProjectSummary analyze(Path root) throws Exception {
+        return analyzeProject(root);
+    }
+
+    /**
+     * 实现 JavaCodeParser 接口：索引单个文件（不支持）。
+     * JavaProjectAnalyzer 只用于项目分析，不提供单文件索引功能。
+     *
+     * @param javaFile Java 源文件
+     * @return 方法列表（不支持）
+     * @throws UnsupportedOperationException 总是抛出异常
+     */
+    @Override
+    public List<MethodInfo> indexFile(Path javaFile) throws Exception {
+        throw new UnsupportedOperationException("Use JavaProjectIndexer for file indexing");
+    }
+
+    /**
+     * 实现 JavaCodeParser 接口：索引项目（不支持）。
+     * JavaProjectAnalyzer 只用于项目分析，不提供项目索引功能。
+     *
+     * @param projectRoot 项目根目录
+     * @return 方法列表（不支持）
+     * @throws UnsupportedOperationException 总是抛出异常
+     */
+    @Override
+    public List<MethodInfo> indexProject(Path projectRoot) throws Exception {
+        throw new UnsupportedOperationException("Use JavaProjectIndexer for project indexing");
+    }
+
+    /**
+     * 实现 JavaCodeParser 接口：分析项目结构和统计信息。
+     *
+     * @param root 项目根目录
+     * @return 项目分析总结
+     * @throws Exception 如果分析失败
+     */
+    @Override
+    public ProjectSummary analyzeProject(Path root) throws Exception {
+       
         Path normalizedRoot = root.toAbsolutePath().normalize();
         ProjectSummary summary = new ProjectSummary();
         summary.projectRoot = ".";
@@ -132,6 +191,16 @@ public class JavaProjectAnalyzer implements ProjectAnalyzer {
         if (!summary.coreLogic.isEmpty()) summary.architecturalLayers.add("Core Logic/Orchestration Layer");
         
         return summary;
+    }
+
+    @Override
+    public String getBackendName() {
+        return "JavaParser 3.28.1";
+    }
+
+    @Override
+    public boolean isAvailable() {
+        return true; // JavaParser 总是通过 Maven 依赖可用
     }
 
     private void detectBuildFiles(Path root, ProjectSummary summary) {

@@ -26,6 +26,7 @@ import me.asu.ai.llm.LLMClient;
 import me.asu.ai.llm.LLMFactory;
 import me.asu.ai.model.MethodInfo;
 import me.asu.ai.model.ProjectSummary;
+import me.asu.ai.util.Utils;
 
 public class CommandBridgeSupport {
 
@@ -130,9 +131,16 @@ public class CommandBridgeSupport {
             if (task.isBlank()) {
                 return ToolExecutionResult.failure(toolName, "Missing required argument: task");
             }
-            Path indexPath = Path.of(args.path("indexPath").asText("index.json")).toAbsolutePath().normalize();
-            if (!Files.isRegularFile(indexPath)) {
-                return ToolExecutionResult.failure(toolName, "index file not found: " + indexPath);
+            String indexPathValue = args.path("indexPath").asText("index.json");
+            Path indexPath;
+            if ("index.json".equals(indexPathValue)) {
+                indexPath = Utils.findFileUpwards("index.json");
+            } else {
+                indexPath = Path.of(indexPathValue).toAbsolutePath().normalize();
+            }
+
+            if (indexPath == null || !Files.isRegularFile(indexPath)) {
+                return ToolExecutionResult.failure(toolName, "index file not found: " + indexPathValue);
             }
             List<MethodInfo> index = mapper.readValue(indexPath.toFile(), new TypeReference<List<MethodInfo>>() {
             });
@@ -187,15 +195,14 @@ public class CommandBridgeSupport {
     }
 
     private ProjectSummary loadProjectSummary(String projectSummaryPath) throws Exception {
+        Path path;
         if (projectSummaryPath == null || projectSummaryPath.isBlank()) {
-            Path defaultPath = Path.of("project-summary.json").toAbsolutePath().normalize();
-            if (!Files.isRegularFile(defaultPath)) {
-                return null;
-            }
-            return mapper.readValue(defaultPath.toFile(), ProjectSummary.class);
+            path = Utils.findFileUpwards("project-summary.json");
+        } else {
+            path = Path.of(projectSummaryPath).toAbsolutePath().normalize();
         }
-        Path path = Path.of(projectSummaryPath).toAbsolutePath().normalize();
-        if (!Files.isRegularFile(path)) {
+
+        if (path == null || !Files.isRegularFile(path)) {
             return null;
         }
         return mapper.readValue(path.toFile(), ProjectSummary.class);

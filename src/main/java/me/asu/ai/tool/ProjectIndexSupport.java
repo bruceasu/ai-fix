@@ -2,12 +2,13 @@ package me.asu.ai.tool;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.io.File;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import me.asu.ai.fix.FixTextSupport;
 import me.asu.ai.io.CodeLoader;
 import me.asu.ai.model.MethodInfo;
+import me.asu.ai.util.Utils;
 
 public class ProjectIndexSupport {
 
@@ -19,9 +20,17 @@ public class ProjectIndexSupport {
     }
 
     public String explainSymbolInput(String indexPath, String symbol, String container, int limit) throws Exception {
-        Path path = Path.of(indexPath == null || indexPath.isBlank() ? "index.json" : indexPath)
-                .toAbsolutePath()
-                .normalize();
+        Path path;
+        if (indexPath == null || indexPath.isBlank() || "index.json".equals(indexPath)) {
+            path = Utils.findFileUpwards("index.json");
+        } else {
+            path = Path.of(indexPath).toAbsolutePath().normalize();
+        }
+
+        if (path == null || !Files.exists(path)) {
+            throw new IllegalArgumentException("index.json not found. Run 'index' command first.");
+        }
+
         List<MethodInfo> methods = mapper.readValue(path.toFile(), new TypeReference<List<MethodInfo>>() {
         });
         List<MethodInfo> matches = methods.stream()

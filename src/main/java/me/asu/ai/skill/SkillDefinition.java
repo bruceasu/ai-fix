@@ -1,7 +1,9 @@
 package me.asu.ai.skill;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import me.asu.ai.tool.ToolArgumentDefinition;
 
 public class SkillDefinition {
@@ -14,4 +16,5 @@ public class SkillDefinition {
     public String markdownHome;
     public String markdownDescription;
     public boolean generatedFromMarkdown;
+    public Map<String, String> parameterAliases = new LinkedHashMap<>();
 }

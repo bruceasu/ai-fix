@@ -1,0 +1,9 @@
+Usage:
+    java -jar ai-fix-<version>.jar index [source-root]
+
+Description:
+    Scan Java, Go, or Python source files and generate index.json in the current working directory.
+
+Options:
+    --language <name>         auto | java | go | python
+    --help   Show this help

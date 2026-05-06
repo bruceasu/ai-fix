@@ -9,10 +9,10 @@ import java.nio.file.Paths;
 import java.util.List;
 import me.asu.ai.analyze.ProjectLanguage;
 import me.asu.ai.analyze.ProjectLanguageDetector;
-import me.asu.ai.index.JavaProjectIndexer;
 import me.asu.ai.index.ProjectIndexer;
 import me.asu.ai.index.ProjectIndexerFactory;
 import me.asu.ai.model.MethodInfo;
+import me.asu.ai.util.Utils;
 
 public class IndexCli {
 
@@ -49,17 +49,8 @@ public class IndexCli {
     }
 
     public static void printUsage() {
-        System.out.println("""
-                Usage:
-                  java -jar ai-fix-<version>.jar index [source-root]
+       Utils.printUsage("index-cli-usage.txt");
 
-                Description:
-                  Scan Java, Go, or Python source files and generate index.json in the current working directory.
-
-                Options:
-                  --language <name>         auto | java | go | python
-                  --help   Show this help
-                """);
     }
 
     private static boolean containsHelpFlag(String[] args) {

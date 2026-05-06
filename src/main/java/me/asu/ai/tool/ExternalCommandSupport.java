@@ -21,7 +21,14 @@ public class ExternalCommandSupport {
             List<String> command = new ArrayList<>();
             command.addAll(resolveProgramCommand(definition.tool.program, toolDir));
             for (String token : definition.tool.args) {
-                command.add(renderToken(token, args, toolDir));
+                String renderedToken = renderToken(token, args, toolDir);
+                if (renderedToken == null || renderedToken.isBlank()) {
+                    if (!command.isEmpty() && isOptionFlag(command.get(command.size() - 1))) {
+                        command.remove(command.size() - 1);
+                    }
+                    continue;
+                }
+                command.add(renderedToken);
             }
 
             ProcessBuilder builder = new ProcessBuilder(command);
@@ -40,7 +47,7 @@ public class ExternalCommandSupport {
             }
             return ToolExecutionResult.success(definition.name, stdout.trim(), java.util.Map.of(
                     "type", "external-command",
-                    "program", command.getFirst(),
+                    "program", command.isEmpty() ? definition.tool.program : command.get(0),
                     "workingDirectory", workingDir.toString().replace('\\', '/'),
                     "exitCode", exitCode));
         } catch (Exception e) {
@@ -81,7 +88,14 @@ public class ExternalCommandSupport {
                 rendered = rendered.replace("${" + name + "}", args.path(name).asText(""));
             }
         }
+        if (rendered.isBlank() || rendered.matches("^.*=$")) {
+            return "";
+        }
         return resolvePathToken(rendered, toolDir, toolDir).toString();
+    }
+
+    private boolean isOptionFlag(String token) {
+        return token != null && token.startsWith("-") && token.length() > 1;
     }
 
     private Path resolvePathToken(String token, Path toolDir, Path fallbackDir) {

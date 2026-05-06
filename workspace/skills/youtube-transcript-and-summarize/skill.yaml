@@ -1,6 +1,8 @@
 name: youtube-transcript-and-summarize
 description: Fetch YouTube transcripts and summarize the central ideas for one or more videos.
 autoExecuteAllowed: true
+parameterAliases:
+  url: input
 arguments:
   - name: input
     type: string
@@ -61,6 +63,7 @@ steps:
       workers: ${input.workers}
       retries: ${input.retries}
       useCache: ${input.useCache}
+      outputMode: json
       includeTranscriptText: true
       maxCharsPerTranscript: ${input.maxCharsPerTranscript}
       dryRun: false

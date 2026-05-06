@@ -27,7 +27,7 @@ import me.asu.ai.util.GitWorktreeSupport;
 import me.asu.ai.util.JacksonUtils;
 import me.asu.ai.util.Utils;
 
-public class AiFixCLI {
+public class AiFixCli {
 
     public static void main(String[] args) throws Exception {
         System.setOut(new PrintStream(System.out, true, StandardCharsets.UTF_8));
@@ -59,8 +59,13 @@ public class AiFixCLI {
 
         GitWorktreeSupport git = new GitWorktreeSupport();
         FixTargetMatcher matcher = new FixTargetMatcher();
+        Path indexPath = Utils.findFileUpwards("index.json");
+        if (indexPath == null) {
+            System.err.println("index.json not found. Run 'index' command first.");
+            return;
+        }
         List<MethodInfo> index = JacksonUtils.deserialize(
-                Files.newBufferedReader(Paths.get("index.json"), StandardCharsets.UTF_8),
+                Files.newBufferedReader(indexPath, StandardCharsets.UTF_8),
                 new TypeReference<List<MethodInfo>>() { });
 
         List<MethodInfo> targets = matcher.filterTargets(
@@ -191,9 +196,8 @@ public class AiFixCLI {
         }
     }
 
-
     public static void printUsage() {
-        FixCliOptions.printUsage();
+        Utils.printUsage("fix-cli-usage.txt");
     }
 
     static String defaultBranchName() {
@@ -206,14 +210,17 @@ public class AiFixCLI {
     }
 
     private static ProjectSummary loadProjectSummary(String projectSummaryPath) throws Exception {
-        Path path = projectSummaryPath == null || projectSummaryPath.isBlank()
-                ? Paths.get("project-summary.json")
-                : Paths.get(projectSummaryPath);
-        Path normalized = path.toAbsolutePath().normalize();
-        if (!Files.isRegularFile(normalized)) {
+        Path path;
+        if (projectSummaryPath == null || projectSummaryPath.isBlank()) {
+            path = Utils.findFileUpwards("project-summary.json");
+        } else {
+            path = Paths.get(projectSummaryPath).toAbsolutePath().normalize();
+        }
+
+        if (path == null || !Files.isRegularFile(path)) {
             return null;
         }
-        return JacksonUtils.deserialize(normalized.toFile(), ProjectSummary.class);
+        return JacksonUtils.deserialize(path.toFile(), ProjectSummary.class);
     }
 
 }

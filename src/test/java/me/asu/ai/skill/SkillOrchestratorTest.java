@@ -111,7 +111,7 @@ class SkillOrchestratorTest {
                         }
                         """.formatted(tempDir.toString().replace("\\", "/")));
 
-        SkillOrchestrator.persistYouTubeSummaryIfNeeded(
+        SkillEvaluator.persistYouTubeSummaryIfNeeded(
                 "youtube-transcript-and-summarize",
                 input,
                 context,
@@ -133,7 +133,7 @@ class SkillOrchestratorTest {
         context.put("summary", "[Overview]\nExplicit path");
         context.put("transcriptSummary", "{\"videoIds\":[\"ignored\"],\"outputDir\":\"ignored\"}");
 
-        SkillOrchestrator.persistYouTubeSummaryIfNeeded(
+        SkillEvaluator.persistYouTubeSummaryIfNeeded(
                 "youtube-transcript-and-summarize",
                 input,
                 context,
@@ -152,7 +152,7 @@ class SkillOrchestratorTest {
         Map<String, Object> result = new LinkedHashMap<>();
         context.put("report", "[Status]\nPass");
 
-        SkillOrchestrator.persistPlaywrightSmokeReportIfNeeded(
+        SkillEvaluator.persistPlaywrightSmokeReportIfNeeded(
                 "playwright-ui-smoke-test",
                 input,
                 context,
@@ -178,7 +178,7 @@ class SkillOrchestratorTest {
                         }
                         """.formatted(screenshot.toString().replace("\\", "/")));
 
-        SkillOrchestrator.persistPlaywrightSmokeReportIfNeeded(
+        SkillEvaluator.persistPlaywrightSmokeReportIfNeeded(
                 "playwright-ui-smoke-test",
                 input,
                 context,

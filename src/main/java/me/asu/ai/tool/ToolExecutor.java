@@ -14,6 +14,7 @@ import java.util.stream.Stream;
 import me.asu.ai.config.AppConfig;
 import me.asu.ai.llm.LLMClient;
 import me.asu.ai.llm.LLMFactory;
+import me.asu.ai.util.Utils;
 
 public class ToolExecutor {
 
@@ -272,9 +273,15 @@ public class ToolExecutor {
 
     private ToolExecutionResult executeProjectSummaryReader(String toolName, JsonNode args) throws Exception {
         String pathValue = args.path("path").asText("project-summary.json");
-        Path path = Path.of(pathValue).toAbsolutePath().normalize();
-        if (!Files.isRegularFile(path)) {
-            return ToolExecutionResult.failure(toolName, "project summary file not found: " + path);
+        Path path;
+        if ("project-summary.json".equals(pathValue)) {
+            path = Utils.findFileUpwards("project-summary.json");
+        } else {
+            path = Path.of(pathValue).toAbsolutePath().normalize();
+        }
+
+        if (path == null || !Files.isRegularFile(path)) {
+            return ToolExecutionResult.failure(toolName, "project summary file not found: " + pathValue);
         }
         String content = Files.readString(path, StandardCharsets.UTF_8);
         return ToolExecutionResult.success(toolName, content, Map.of(
@@ -282,16 +289,24 @@ public class ToolExecutor {
     }
 
     private ToolExecutionResult executeIndexSymbolReader(String toolName, JsonNode args) throws Exception {
-        String indexPath = args.path("indexPath").asText("index.json");
+        String indexPathValue = args.path("indexPath").asText("index.json");
         String symbol = args.path("symbol").asText("");
         String container = args.path("container").asText("");
         int limit = args.path("limit").asInt(5);
         if (symbol.isBlank()) {
             return ToolExecutionResult.failure(toolName, "Missing required argument: symbol");
         }
-        String output = projectIndexSupport.explainSymbolInput(indexPath, symbol, container, limit);
+        String output = projectIndexSupport.explainSymbolInput(indexPathValue, symbol, container, limit);
+
+        Path resolvedPath;
+        if ("index.json".equals(indexPathValue)) {
+            resolvedPath = Utils.findFileUpwards("index.json");
+        } else {
+            resolvedPath = Path.of(indexPathValue).toAbsolutePath().normalize();
+        }
+
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("indexPath", Path.of(indexPath).toAbsolutePath().normalize().toString().replace('\\', '/'));
+        data.put("indexPath", resolvedPath != null ? resolvedPath.toString().replace('\\', '/') : indexPathValue);
         data.put("symbol", symbol);
         data.put("container", container);
         data.put("limit", limit);

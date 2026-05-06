@@ -25,22 +25,23 @@ public class MainCli {
             return;
         }
         if (command.startsWith("--")) {
-            AiFixCLI.main(args);
+            AiFixCli.main(args);
             return;
         }
 
         String[] forwardedArgs = Arrays.copyOfRange(args, 1, args.length);
         switch (command) {
             case "analyze" -> AiAnalyzeCLI.main(forwardedArgs);
-            case "fix" -> AiFixCLI.main(forwardedArgs);
+            case "fix" -> AiFixCli.main(forwardedArgs);
             case "index" -> IndexCli.main(forwardedArgs);
             case "tool" -> ToolCli.main(forwardedArgs);
             case "skill" -> SkillCli.main(forwardedArgs);
             case "knowledge" -> KnowledgeCli.main(forwardedArgs);
             case "generate-exe" -> GenerateExeCli.main(forwardedArgs);
             case "chat" -> ChatCli.main(forwardedArgs);
-            case "understand" -> AiUnderstandCLI.main(forwardedArgs);
+            case "understand" -> AiUnderstandCli.main(forwardedArgs);
             case "init" -> InitCli.main(forwardedArgs);
+            case "match" -> MatchFunctionalityCli.main(forwardedArgs);
             default -> {
                 System.out.println("Unknown command: " + command);
                 System.out.println("Use 'help' to see available commands.");
@@ -57,14 +58,14 @@ public class MainCli {
     private static void printCommandUsage(String command) {
         switch (command) {
             case "analyze" -> AiAnalyzeCLI.printUsage();
-            case "fix" -> AiFixCLI.printUsage();
+            case "fix" -> AiFixCli.printUsage();
             case "index" -> IndexCli.printUsage();
             case "tool" -> ToolCli.printUsage();
             case "skill" -> SkillCli.printUsage();
             case "knowledge" -> KnowledgeCli.printUsage();
             case "generate-exe" -> GenerateExeCli.printUsage();
             case "chat" -> ChatCli.printUsage();
-            case "understand" -> AiUnderstandCLI.printUsage();
+            case "understand" -> AiUnderstandCli.printUsage();
             case "init" -> InitCli.printUsage();
             default -> printUsage();
         }

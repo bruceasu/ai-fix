@@ -1,11 +1,41 @@
 package me.asu.ai.util;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Locale;
 import java.util.Scanner;
 
+import me.asu.ai.cli.IndexCli;
+
 public class Utils {
-    
+
+     public static void printUsage(String resourceName) {
+        try {
+            Utils.class.getClassLoader().getResourceAsStream(resourceName).transferTo(System.out);
+        } catch (Exception e) {
+            System.err.println("Failed to load usage instructions: " + e.getMessage());
+        }
+
+    }
+    /**
+     * Find a file by searching upwards from the current directory.
+     * @param fileName The name of the file to find.
+     * @return The absolute path of the file if found, otherwise null.
+     */
+    public static Path findFileUpwards(String fileName) {
+        Path current = Paths.get(".").toAbsolutePath().normalize();
+        while (current != null) {
+            Path target = current.resolve(fileName);
+            if (Files.exists(target) && Files.isRegularFile(target)) {
+                return target;
+            }
+            current = current.getParent();
+        }
+        return null;
+    }
+
     public static boolean containsHelpFlag(String[] args) {
         for (String arg : args) {
             if ("--help".equals(arg) || "-h".equals(arg) || "help".equals(arg)) {

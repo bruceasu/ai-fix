@@ -27,6 +27,7 @@ import me.asu.ai.tool.ToolCatalogService;
 import me.asu.ai.tool.ToolDefinition;
 import me.asu.ai.tool.ToolExecutionResult;
 import me.asu.ai.tool.ToolExecutor;
+import me.asu.ai.util.Utils;
 import me.asu.ai.model.ProjectSummary;
 import me.asu.ai.util.ContextSurgerySupport;
 import me.asu.ai.util.JacksonUtils;
@@ -1040,15 +1041,18 @@ public class ChatCli {
     }
 
     private static ProjectSummary loadProjectSummary(String projectSummaryPath) {
-        Path path = projectSummaryPath == null || projectSummaryPath.isBlank()
-                ? Paths.get("project-summary.json")
-                : Paths.get(projectSummaryPath);
-        Path normalized = path.toAbsolutePath().normalize();
-        if (!Files.isRegularFile(normalized)) {
+        Path path;
+        if (projectSummaryPath == null || projectSummaryPath.isBlank()) {
+            path = Utils.findFileUpwards("project-summary.json");
+        } else {
+            path = Paths.get(projectSummaryPath).toAbsolutePath().normalize();
+        }
+
+        if (path == null || !Files.isRegularFile(path)) {
             return null;
         }
         try {
-            return JacksonUtils.deserialize(normalized.toFile(), ProjectSummary.class);
+            return JacksonUtils.deserialize(path.toFile(), ProjectSummary.class);
         } catch (Exception e) {
             return null;
         }

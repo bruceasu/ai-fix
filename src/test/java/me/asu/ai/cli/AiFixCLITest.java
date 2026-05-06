@@ -27,12 +27,12 @@ class AiFixCLITest {
 
     @Test
     void defaultCommitMessageShouldPrefixTask() {
-        assertEquals("AI fix: tighten null handling", AiFixCLI.buildDefaultCommitMessage("tighten null handling"));
+        assertEquals("AI fix: tighten null handling", AiFixCli.buildDefaultCommitMessage("tighten null handling"));
     }
 
     @Test
     void defaultBranchNameShouldUseAiFixPrefix() {
-        String branch = AiFixCLI.defaultBranchName();
+        String branch = AiFixCli.defaultBranchName();
         assertTrue(branch.startsWith("ai-fix/"));
         assertEquals("ai-fix/".length() + 14, branch.length());
     }

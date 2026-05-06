@@ -450,6 +450,9 @@ public final class SkillMarkdownSupport {
         map.put("name", definition.name);
         map.put("description", definition.description);
         map.put("autoExecuteAllowed", definition.autoExecuteAllowed);
+        if (!definition.parameterAliases.isEmpty()) {
+            map.put("parameterAliases", definition.parameterAliases);
+        }
         map.put("arguments", definition.arguments);
         map.put("steps", definition.steps);
         return map;

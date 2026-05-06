@@ -15,9 +15,8 @@ import me.asu.ai.config.AppConfig;
 import me.asu.ai.llm.LLMClient;
 import me.asu.ai.llm.LLMFactory;
 import me.asu.ai.model.ProjectSummary;
-import me.asu.ai.util.JacksonUtils;
 
-public class AiUnderstandCLI {
+public class AiUnderstandCli {
 
     public static void main(String[] args) throws Exception {
         System.setOut(new PrintStream(System.out, true, StandardCharsets.UTF_8));
