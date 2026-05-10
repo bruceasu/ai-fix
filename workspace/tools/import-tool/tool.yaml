@@ -6,18 +6,6 @@ tool:
   program: python
   args:
     - ./run.py
-    - --command
-    - ${command}
-    - --file
-    - ${file}
-    - --dir
-    - ${dir}
-    - --workers
-    - ${workers}
-    - --dry-run
-    - ${dryRun}
-    - --config
-    - ${config}
 arguments:
   - name: command
     type: string

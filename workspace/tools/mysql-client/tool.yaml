@@ -6,26 +6,7 @@ tool:
   program: python
   args:
     - ./run.py
-    - -Query
-    - ${query}
-    - -FilePath
-    - ${file}
-    - -Host
-    - ${host}
-    - -Port
-    - ${port}
-    - -Database
-    - ${database}
-    - -User
-    - ${user}
-    - -Password
-    - ${password}
-    - -SslMode
-    - ${sslMode}
-    - -DefaultsFile
-    - ${defaultsFile}
-    - -TuplesOnly
-    - ${tuplesOnly}
+
 arguments:
   - name: query
     type: string

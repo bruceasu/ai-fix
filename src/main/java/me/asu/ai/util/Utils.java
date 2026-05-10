@@ -7,7 +7,6 @@ import java.nio.file.Paths;
 import java.util.Locale;
 import java.util.Scanner;
 
-import me.asu.ai.cli.IndexCli;
 
 public class Utils {
 
@@ -44,6 +43,7 @@ public class Utils {
         }
         return false;
     }
+    
 
     public static String findOptionValue(String[] args, String optionName) {
         for (int i = 0; i < args.length - 1; i++) {
@@ -54,6 +54,15 @@ public class Utils {
         return null;
     }
 
+
+    public static boolean containsFlag(String[] args, String flag) {
+        for (String arg : args) {
+            if (flag.equals(arg)) {
+                return true;
+            }
+        }
+        return false;
+    }
     public static String readTaskInteractively() {
         try(Scanner scanner = new Scanner(System.in, StandardCharsets.UTF_8);) {
             System.out.print("Enter task: ");
@@ -169,4 +178,16 @@ public class Utils {
         return String.format(Locale.ROOT, fmt, v);
     }
 
+     public static String runCommandCapture(String... cmd) throws Exception {
+        ProcessBuilder pb = new ProcessBuilder(cmd);
+        pb.redirectErrorStream(true);
+
+        Process p = pb.start();
+        String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        int exit = p.waitFor();
+        if (exit != 0) {
+            throw new RuntimeException("Command failed: " + String.join(" ", cmd) + "\n" + out);
+        }
+        return out;
+    }
 }

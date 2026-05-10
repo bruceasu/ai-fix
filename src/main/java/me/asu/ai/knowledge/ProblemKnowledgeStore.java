@@ -9,13 +9,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import me.asu.ai.analyze.AnalyzeInputType;
 import me.asu.ai.config.AppConfig;
-import me.asu.ai.model.MethodInfo;
 
 public class ProblemKnowledgeStore {
 
@@ -28,111 +25,40 @@ public class ProblemKnowledgeStore {
         this.config = config;
     }
 
-    public void recordAnalyze(String input, AnalyzeInputType type, String processed, String result) {
+    public void recordToolExecution(String name, boolean success, String output, Map<String, Object> metadata, String error) {
         ProblemKnowledgeRecord record = new ProblemKnowledgeRecord();
         record.timestamp = LocalDateTime.now().format(TS);
-        record.source = "analyze";
-        record.mode = "read-only";
-        record.status = "recorded";
-        record.problemType = type == null ? "unknown" : type.name().toLowerCase();
-        record.classification = firstNonBlank(
-                extractSection(result, "[Problem Type]"),
-                record.problemType,
-                "unknown");
-        record.inputSnippet = truncate(firstNonBlank(processed, input, ""), 2000);
-        record.analysis = truncate(result, 4000);
-        record.repairScheme = extractSection(result, "[Suggestions]");
-        record.metadata.put("inputType", record.problemType);
-        persist(record);
-    }
-
-    public void recordFixSuggestion(String task, MethodInfo target, String suggestion) {
-        ProblemKnowledgeRecord record = baseFixRecord(task, target);
-        record.source = "fix";
-        record.mode = "suggestion-only";
-        record.status = "recorded";
-        record.problemType = "fix-task";
-        record.classification = firstNonBlank(
-                extractSection(suggestion, "[Understanding]"),
-                safe(task),
-                "fix-task");
-        record.analysis = truncate(extractSection(suggestion, "[Understanding]"), 2000);
-        record.repairScheme = truncate(extractSection(suggestion, "[Suggestions]"), 3000);
-        persist(record);
-    }
-
-    public void recordFixExecution(String task, MethodInfo target, boolean success, String error, String branch) {
-        recordFixExecution(task, target, success, error, branch, "");
-    }
-
-    public void recordFixExecution(
-            String task,
-            MethodInfo target,
-            boolean success,
-            String error,
-            String branch,
-            String patchFile) {
-        ProblemKnowledgeRecord record = baseFixRecord(task, target);
-        record.source = "fix";
-        record.mode = "apply";
+        record.source = "tool";
+        record.mode = "execute";
         record.status = success ? "success" : "failure";
-        record.problemType = "fix-task";
-        record.classification = safe(task);
-        record.analysis = "Automatic fix execution completed.";
-        record.repairScheme = safe(task);
+        record.problemType = "tool-execution";
+        record.classification = safe(name);
+        record.analysis = success ? truncate(output, 2000) : "";
+        record.repairScheme = "";
         record.error = safe(error);
-        if (branch != null && !branch.isBlank()) {
-            record.metadata.put("branch", branch);
-        }
-        if (patchFile != null && !patchFile.isBlank()) {
-            record.metadata.put("patchFile", patchFile);
-        }
-        if (success) {
-            enrichSuccessfulFixRecord(record, patchFile);
+        if (metadata != null) {
+            record.metadata.putAll(metadata);
         }
         persist(record);
     }
 
-    public List<ProblemKnowledgeRecord> findRelevantRecords(String task, MethodInfo target, int limit) {
-        List<ScoredRecord> scored = new ArrayList<>();
+    public void recordSkillExecution(String name, boolean success, Map<String, Object> context, String error) {
+        ProblemKnowledgeRecord record = new ProblemKnowledgeRecord();
+        record.timestamp = LocalDateTime.now().format(TS);
+        record.source = "skill";
+        record.mode = "execute";
+        record.status = success ? "success" : "failure";
+        record.problemType = "skill-execution";
+        record.classification = safe(name);
         try {
-            for (ProblemKnowledgeRecord record : loadAllRecords()) {
-                int score = scoreRecord(record, task, target);
-                if (score > 0) {
-                    scored.add(new ScoredRecord(record, score));
-                }
-            }
+            record.analysis = truncate(mapper.writeValueAsString(context == null ? Map.of() : context), 4000);
         } catch (Exception e) {
-            return List.of();
+            record.analysis = "(failed to serialize context)";
         }
-        return scored.stream()
-                .sorted(Comparator.comparingInt(ScoredRecord::score).reversed())
-                .limit(Math.max(0, limit))
-                .map(ScoredRecord::record)
-                .toList();
+        record.error = safe(error);
+        persist(record);
     }
 
-    public List<ProblemKnowledgeRecord> findSuccessfulRelevantRecords(String task, MethodInfo target, int limit) {
-        List<ScoredRecord> scored = new ArrayList<>();
-        try {
-            for (ProblemKnowledgeRecord record : loadAllRecords()) {
-                if (!isAiReusable(record)) {
-                    continue;
-                }
-                int score = scoreRecord(record, task, target);
-                if (score > 0) {
-                    scored.add(new ScoredRecord(record, score));
-                }
-            }
-        } catch (Exception e) {
-            return List.of();
-        }
-        return scored.stream()
-                .sorted(Comparator.comparingInt(ScoredRecord::score).reversed())
-                .limit(Math.max(0, limit))
-                .map(ScoredRecord::record)
-                .toList();
-    }
 
     public List<ProblemKnowledgeRecord> listRecentRecords(int limit) {
         List<ProblemKnowledgeRecord> records = loadAllRecords();
@@ -190,26 +116,6 @@ public class ProblemKnowledgeStore {
                 .limit(Math.max(0, limit))
                 .map(ScoredRecord::record)
                 .toList();
-    }
-
-    private ProblemKnowledgeRecord baseFixRecord(String task, MethodInfo target) {
-        ProblemKnowledgeRecord record = new ProblemKnowledgeRecord();
-        record.timestamp = LocalDateTime.now().format(TS);
-        record.task = safe(task);
-        if (target != null) {
-            record.target = firstNonBlank(
-                    safe(target.containerName) + "#" + safe(target.symbolName),
-                    safe(target.className) + "#" + safe(target.methodName),
-                    safe(target.signature));
-            record.file = safe(target.file);
-            record.lineRange = target.beginLine > 0 || target.endLine > 0
-                    ? target.beginLine + "-" + target.endLine
-                    : "";
-            record.metadata.put("language", safe(target.language));
-            record.metadata.put("symbolType", safe(target.symbolType));
-            record.metadata.put("signature", safe(target.signature));
-        }
-        return record;
     }
 
     private void persist(ProblemKnowledgeRecord record) {
@@ -358,51 +264,6 @@ public class ProblemKnowledgeStore {
             return "validation-check";
         }
         return "behavior-guard";
-    }
-
-    private int scoreRecord(ProblemKnowledgeRecord record, String task, MethodInfo target) {
-        int score = 0;
-        if (record == null) {
-            return 0;
-        }
-        Set<String> taskTokens = tokenize(task);
-        Set<String> recordTokens = new HashSet<>();
-        recordTokens.addAll(tokenize(record.task));
-        recordTokens.addAll(tokenize(record.classification));
-        recordTokens.addAll(tokenize(record.problemType));
-        recordTokens.addAll(tokenize(record.analysis));
-        recordTokens.addAll(tokenize(record.repairScheme));
-        for (String token : taskTokens) {
-            if (recordTokens.contains(token)) {
-                score += 2;
-            }
-        }
-        if (target != null) {
-            if (matchesIgnoreCase(record.file, target.file)) {
-                score += 6;
-            }
-            if (matchesIgnoreCase(record.target, safe(target.containerName) + "#" + safe(target.symbolName))) {
-                score += 8;
-            }
-            if (matchesIgnoreCase(record.target, safe(target.className) + "#" + safe(target.methodName))) {
-                score += 7;
-            }
-            if (matchesIgnoreCase(record.problemType, safe(target.language))) {
-                score += 1;
-            }
-            String language = safe(target.language);
-            Object metadataLanguage = record.metadata == null ? null : record.metadata.get("language");
-            if (!language.isBlank() && metadataLanguage != null && language.equalsIgnoreCase(String.valueOf(metadataLanguage))) {
-                score += 2;
-            }
-        }
-        if ("fix".equalsIgnoreCase(record.source)) {
-            score += 2;
-        }
-        if ("success".equalsIgnoreCase(record.status)) {
-            score += 1;
-        }
-        return score;
     }
 
     private int scoreTextRecord(ProblemKnowledgeRecord record, Set<String> queryTokens) {

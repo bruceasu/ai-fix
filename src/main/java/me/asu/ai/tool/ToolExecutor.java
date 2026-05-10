@@ -13,7 +13,7 @@ import java.util.Arrays;
 import java.util.stream.Stream;
 import me.asu.ai.config.AppConfig;
 import me.asu.ai.llm.LLMClient;
-import me.asu.ai.llm.LLMFactory;
+import me.asu.ai.llm.PythonLLMClient;
 import me.asu.ai.util.Utils;
 
 public class ToolExecutor {
@@ -22,9 +22,6 @@ public class ToolExecutor {
     private final AppConfig config;
     private final ObjectMapper mapper = new ObjectMapper();
     private final WebToolSupport webToolSupport;
-    private final GitDiffSupport gitDiffSupport;
-    private final ProjectIndexSupport projectIndexSupport;
-    private final CommandBridgeSupport commandBridgeSupport;
     private final ExternalCommandSupport externalCommandSupport;
     private final JdbcMetadataSupport jdbcMetadataSupport;
 
@@ -33,52 +30,28 @@ public class ToolExecutor {
     }
 
     public ToolExecutor(ToolCatalogService toolCatalogService, AppConfig config) {
-        this(toolCatalogService, config, new WebToolSupport(), new GitDiffSupport(), new ProjectIndexSupport(), new CommandBridgeSupport(config), new ExternalCommandSupport(), new JdbcMetadataSupport());
+        this(toolCatalogService, config, new WebToolSupport(), new ExternalCommandSupport(config), new JdbcMetadataSupport());
     }
 
-    public ToolExecutor(ToolCatalogService toolCatalogService, WebToolSupport webToolSupport) {
-        this(toolCatalogService, AppConfig.load(), webToolSupport, new GitDiffSupport(), new ProjectIndexSupport(), new CommandBridgeSupport(AppConfig.load()), new ExternalCommandSupport(), new JdbcMetadataSupport());
-    }
 
     public ToolExecutor(
             ToolCatalogService toolCatalogService,
-            WebToolSupport webToolSupport,
-            GitDiffSupport gitDiffSupport) {
-        this(toolCatalogService, AppConfig.load(), webToolSupport, gitDiffSupport, new ProjectIndexSupport(), new CommandBridgeSupport(AppConfig.load()), new ExternalCommandSupport(), new JdbcMetadataSupport());
+            WebToolSupport webToolSupport) {
+        this(toolCatalogService, AppConfig.load(), webToolSupport, new ExternalCommandSupport(), new JdbcMetadataSupport());
     }
 
-    public ToolExecutor(
-            ToolCatalogService toolCatalogService,
-            WebToolSupport webToolSupport,
-            GitDiffSupport gitDiffSupport,
-            ProjectIndexSupport projectIndexSupport) {
-        this(toolCatalogService, AppConfig.load(), webToolSupport, gitDiffSupport, projectIndexSupport, new CommandBridgeSupport(AppConfig.load()), new ExternalCommandSupport(), new JdbcMetadataSupport());
-    }
 
-    public ToolExecutor(
-            ToolCatalogService toolCatalogService,
-            WebToolSupport webToolSupport,
-            GitDiffSupport gitDiffSupport,
-            ProjectIndexSupport projectIndexSupport,
-            CommandBridgeSupport commandBridgeSupport) {
-        this(toolCatalogService, AppConfig.load(), webToolSupport, gitDiffSupport, projectIndexSupport, commandBridgeSupport, new ExternalCommandSupport(), new JdbcMetadataSupport());
-    }
 
     public ToolExecutor(
             ToolCatalogService toolCatalogService,
             AppConfig config,
             WebToolSupport webToolSupport,
-            GitDiffSupport gitDiffSupport,
-            ProjectIndexSupport projectIndexSupport,
-            CommandBridgeSupport commandBridgeSupport,
+         
             ExternalCommandSupport externalCommandSupport,
             JdbcMetadataSupport jdbcMetadataSupport) {
         this.toolCatalogService = toolCatalogService;
         this.config = config == null ? AppConfig.load() : config;
         this.webToolSupport = webToolSupport;
-        this.gitDiffSupport = gitDiffSupport;
-        this.projectIndexSupport = projectIndexSupport;
-        this.commandBridgeSupport = commandBridgeSupport;
         this.externalCommandSupport = externalCommandSupport;
         this.jdbcMetadataSupport = jdbcMetadataSupport;
     }
@@ -92,6 +65,15 @@ public class ToolExecutor {
         }
         try {
             JsonNode args = mapper.readTree(argsJson == null || argsJson.isBlank() ? "{}" : argsJson);
+            // Apply tool-level default values for missing arguments
+            if (definition.arguments != null && !definition.arguments.isEmpty() && args.isObject()) {
+                var obj = (com.fasterxml.jackson.databind.node.ObjectNode) args;
+                for (var argDef : definition.arguments) {
+                    if ((argDef.defaultValue != null && !argDef.defaultValue.isBlank()) && !obj.has(argDef.name)) {
+                        obj.put(argDef.name, argDef.defaultValue);
+                    }
+                }
+            }
             if ("external-command".equalsIgnoreCase(definition.tool.type)) {
                 return externalCommandSupport.execute(definition, args);
             }
@@ -100,16 +82,9 @@ public class ToolExecutor {
                 case "llm_call" -> executeLlmCall(toolName, args);
                 case "read_file" -> executeReadFile(toolName, args);
                 case "list_files" -> executeListFiles(toolName, args);
-                case "git_diff_reader" -> executeGitDiffReader(toolName);
-                case "project_summary_reader" -> executeProjectSummaryReader(toolName, args);
-                case "index_symbol_reader" -> executeIndexSymbolReader(toolName, args);
                 case "web_fetch" -> executeWebFetch(toolName, args);
                 case "web_search" -> executeWebSearch(toolName, args);
                 case "db_metadata_reader" -> executeDbMetadataReader(toolName, args);
-                case "command_analyze" -> commandBridgeSupport.executeAnalyze(toolName, args);
-                case "command_index" -> commandBridgeSupport.executeIndex(toolName, args);
-                case "command_understand" -> commandBridgeSupport.executeUnderstand(toolName, args);
-                case "command_fix_suggest" -> commandBridgeSupport.executeFixSuggest(toolName, args);
                 default -> ToolExecutionResult.failure(toolName, "Unsupported builtin tool command: " + definition.tool.command);
             };
         } catch (Exception e) {
@@ -192,7 +167,9 @@ public class ToolExecutor {
     }
 
     protected LLMClient createLlmClient(String provider, String model) {
-        return LLMFactory.create(provider, model, config);
+        return new PythonLLMClient(config.get("llm.pythonCmd", "python"), 
+            Path.of(config.get("llm.scriptPath", "workspace/tools/llm/run.py")), 
+            provider, model);
     }
 
     private void validateRequiredKeys(String requiredKeys, Map<String, Object> structured) {
@@ -240,11 +217,7 @@ public class ToolExecutor {
                 "truncated", truncated));
     }
 
-    private ToolExecutionResult executeGitDiffReader(String toolName) throws Exception {
-        String diff = gitDiffSupport.readChangedFilesReviewInput();
-        return ToolExecutionResult.success(toolName, diff, Map.of(
-                "source", "git diff HEAD --"));
-    }
+
 
     private ToolExecutionResult executeListFiles(String toolName, JsonNode args) throws Exception {
         String rootValue = args.path("root").asText(".");
@@ -269,49 +242,6 @@ public class ToolExecutor {
                     "limit", limit,
                     "files", files));
         }
-    }
-
-    private ToolExecutionResult executeProjectSummaryReader(String toolName, JsonNode args) throws Exception {
-        String pathValue = args.path("path").asText("project-summary.json");
-        Path path;
-        if ("project-summary.json".equals(pathValue)) {
-            path = Utils.findFileUpwards("project-summary.json");
-        } else {
-            path = Path.of(pathValue).toAbsolutePath().normalize();
-        }
-
-        if (path == null || !Files.isRegularFile(path)) {
-            return ToolExecutionResult.failure(toolName, "project summary file not found: " + pathValue);
-        }
-        String content = Files.readString(path, StandardCharsets.UTF_8);
-        return ToolExecutionResult.success(toolName, content, Map.of(
-                "path", path.toString().replace('\\', '/')));
-    }
-
-    private ToolExecutionResult executeIndexSymbolReader(String toolName, JsonNode args) throws Exception {
-        String indexPathValue = args.path("indexPath").asText("index.json");
-        String symbol = args.path("symbol").asText("");
-        String container = args.path("container").asText("");
-        int limit = args.path("limit").asInt(5);
-        if (symbol.isBlank()) {
-            return ToolExecutionResult.failure(toolName, "Missing required argument: symbol");
-        }
-        String output = projectIndexSupport.explainSymbolInput(indexPathValue, symbol, container, limit);
-
-        Path resolvedPath;
-        if ("index.json".equals(indexPathValue)) {
-            resolvedPath = Utils.findFileUpwards("index.json");
-        } else {
-            resolvedPath = Path.of(indexPathValue).toAbsolutePath().normalize();
-        }
-
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("indexPath", resolvedPath != null ? resolvedPath.toString().replace('\\', '/') : indexPathValue);
-        data.put("symbol", symbol);
-        data.put("container", container);
-        data.put("limit", limit);
-        data.put("matchType", output.contains("[candidates]") ? "candidates" : "target");
-        return ToolExecutionResult.success(toolName, output, data);
     }
 
     private ToolExecutionResult executeWebFetch(String toolName, JsonNode args) throws Exception {

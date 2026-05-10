@@ -5,35 +5,35 @@ tool:
   type: external-command
   program: python
   args:
-    - ./run.py
-    - --input
-    - ${input}
-    - --inputs
-    - ${inputs}
-    - --inputs-file
-    - ${inputsFile}
-    - --languages
-    - ${languages}
-    - --output-dir
-    - ${outputDir}
-    - --cache-file
-    - ${cacheFile}
-    - --error-log
-    - ${errorLog}
-    - --workers
-    - ${workers}
-    - --retries
-    - ${retries}
-    - --use-cache
-    - ${useCache}
-    - --output-mode
-    - ${outputMode}
-    - --include-transcript-text
-    - ${includeTranscriptText}
-    - --max-chars-per-transcript
-    - ${maxCharsPerTranscript}
-    - --dry-run
-    - ${dryRun}
+    - "${toolHome}/run.py"
+    - "--input"
+    - "${input}"
+    - "--inputs"
+    - "${inputs}"
+    - "--inputs_file"
+    - "${inputs_file}"
+    - "--languages"
+    - "${languages}"
+    - "--output_dir"
+    - "${output_dir}"
+    - "--cache_file"
+    - "${cache_file}"
+    - "--error_log"
+    - "${error_log}"
+    - "--workers"
+    - "${workers}"
+    - "--retries"
+    - "${retries}"
+    - "--use_cache"
+    - "${use_cache}"
+    - "--output_mode"
+    - "${output_mode}"
+    - "--include_transcript_text"
+    - "${include_transcript_text}"
+    - "--max_chars_per_transcript"
+    - "${max_chars_per_transcript}"
+    - "--dry_run"
+    - "${dry_run}"
 arguments:
   - name: input
     type: string
@@ -43,7 +43,7 @@ arguments:
     type: string
     description: Multiple YouTube URLs or IDs separated by commas or newlines
     required: false
-  - name: inputsFile
+  - name: inputs_file
     type: string
     description: Text file containing one YouTube URL or video ID per line
     required: false
@@ -52,15 +52,15 @@ arguments:
     description: Preferred transcript languages, comma-separated
     required: false
     defaultValue: zh-Hans,zh,en,ja
-  - name: outputDir
+  - name: output_dir
     type: string
     description: Transcript output directory; defaults to the local output directory
     required: false
-  - name: cacheFile
+  - name: cache_file
     type: string
     description: Cache JSON path; defaults to the local cache.json
     required: false
-  - name: errorLog
+  - name: error_log
     type: string
     description: Error log path; defaults to the local error.log
     required: false
@@ -74,27 +74,27 @@ arguments:
     description: Transcript fetch retry count per video
     required: false
     defaultValue: "3"
-  - name: useCache
+  - name: use_cache
     type: string
     description: true to skip video IDs already present in cache.json
     required: false
     defaultValue: "true"
-  - name: outputMode
+  - name: output_mode
     type: string
     description: json for structured output or plain-text for merged transcript text only
     required: false
     defaultValue: json
-  - name: includeTranscriptText
+  - name: include_transcript_text
     type: string
     description: true to inline transcript text into the JSON output for downstream summarization
     required: false
     defaultValue: "true"
-  - name: maxCharsPerTranscript
+  - name: max_chars_per_transcript
     type: string
     description: Maximum number of transcript characters to inline per video
     required: false
     defaultValue: "12000"
-  - name: dryRun
+  - name: dry_run
     type: string
     description: true to print the resolved execution plan without calling external libraries
     required: false

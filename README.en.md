@@ -387,7 +387,10 @@ For this repository, you can also point external tools to the workspace-local di
 
 ```properties
 tools.dir=D:/03_projects/suk/ai-fix/workspace/tools
+python.scripts.dir=D:/03_projects/suk/ai-fix/src/main/python
 ```
+
+`tools.dir` controls where tool definitions and tool implementations live. `python.scripts.dir` is the root for shared Python scheduler/runtime code.
 
 Built-in developer tools now include:
 

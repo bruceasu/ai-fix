@@ -66,6 +66,7 @@ public class AppConfig {
         System.out.println("- app.home=" + getAppHomeDirectory());
         System.out.println("- tools.dir=" + getToolsDirectory());
         System.out.println("- skills.dir=" + getSkillsDirectory());
+        System.out.println("- python.scripts.dir=" + getPythonScriptsDirectory());
         System.out.println("- sessions.dir=" + getSessionsDirectory());
         System.out.println("- knowledge.dir=" + getKnowledgeDirectory());
         System.out.println("- provider=" + get("provider", DEFAULT_PROVIDER));
@@ -114,10 +115,9 @@ public class AppConfig {
         putIfPresent("app.home", "AI_FIX_HOME");
         putIfPresent("tools.dir", "AI_FIX_TOOLS_DIR");
         putIfPresent("skills.dir", "AI_FIX_SKILLS_DIR");
+        putIfPresent("python.scripts.dir", "AI_FIX_PYTHON_SCRIPTS_DIR");
         putIfPresent("sessions.dir", "AI_FIX_SESSIONS_DIR");
         putIfPresent("knowledge.dir", "AI_FIX_KNOWLEDGE_DIR");
-        putIfPresent("prompt.template.file", "AI_FIX_PROMPT_TEMPLATE_FILE");
-        putIfPresent("prompt.fix-template.file", "AI_FIX_PROMPT_FIX_TEMPLATE_FILE");
         putIfPresent("openai.api.key", "OPENAI_API_KEY");
         putIfPresent("openai.base.url", "OPENAI_BASE_URL");
         putIfPresent("groq.api.key", "GROQ_API_KEY");
@@ -200,6 +200,14 @@ public class AppConfig {
             return Paths.get(configured).toAbsolutePath().normalize();
         }
         return getAppHomeDirectory().resolve("skills").normalize();
+    }
+
+    public Path getPythonScriptsDirectory() {
+        String configured = get("python.scripts.dir");
+        if (configured != null && !configured.isBlank()) {
+            return Paths.get(configured).toAbsolutePath().normalize();
+        }
+        return resolveProgramDirectory().toPath().toAbsolutePath().normalize();
     }
 
     public Path getSessionsDirectory() {

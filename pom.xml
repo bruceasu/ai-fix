@@ -10,27 +10,7 @@
         <maven.source.encoding>UTF-8</maven.source.encoding>
     </properties>
     <dependencies>
-
-        <!-- JavaParser -->
-        <dependency>
-            <groupId>com.github.javaparser</groupId>
-            <artifactId>javaparser-core</artifactId>
-            <!-- <version>3.25.8</version> -->
-            <version>3.28.1</version>
-        </dependency>
-        <!-- tree-sitter 备选方案（暂不启用，保留用于未来迁移）
-        <dependency>
-            <groupId>io.github.bonede</groupId>
-            <artifactId>tree-sitter</artifactId>
-            <version>0.20.8</version>
-        </dependency>
-        -->
-        <!-- OpenAI Java SDK -->
-        <dependency>
-            <groupId>com.openai</groupId>
-            <artifactId>openai-java</artifactId>
-            <version>4.32.0</version>
-        </dependency>
+        <!-- OpenAI Java SDK removed; Python-backed LLM client is preferred -->
 
         <!-- JSON -->
         <dependency>

@@ -15,19 +15,8 @@ import me.asu.ai.config.AppConfig;
 
 public class SkillCatalogService {
 
-    private static final List<String> BUILTIN_SKILL_NAMES = List.of(
-            "summarize-and-echo",
-            "analyze-java-error",
-            "search-doc-and-explain",
-            "analyze-test-failure",
-            "project-summary-and-explain",
-            "review-changed-files",
-            "explain-file",
-            "explain-symbol",
-            "find-entry-points",
-            "explain-project-structure",
-            "review-method-optimization");
-    private static final List<String> SUPPORTED_FILENAMES = List.of("skill.json", "skill.yaml", "skill.yml");
+    private static final List<String> BUILTIN_SKILL_NAMES = List.of();
+    private static final List<String> SUPPORTED_FILENAMES = List.of("SKILL.md","skill.md",  "skill.yaml", "skill.yml");
 
     private final ObjectMapper jsonMapper = new ObjectMapper();
     private final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());

@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import me.asu.ai.config.AppConfig;
+import me.asu.ai.skill.SkillMarkdownSupport;
 
 public class ToolCatalogService {
 
@@ -44,8 +45,9 @@ public class ToolCatalogService {
 
     public List<ToolDefinition> all() {
         Map<String, ToolDefinition> merged = new LinkedHashMap<>();
-        loadBuiltinTools().forEach(tool -> merged.put(tool.name, tool));
-        loadFilesystemTools().forEach(tool -> {
+        // Load filesystem tools first, then built-in tools but only if not already present
+        loadFilesystemTools().forEach(tool -> merged.put(tool.name, tool));
+        loadBuiltinTools().forEach(tool -> {
             if (merged.containsKey(tool.name)) {
                 return;
             }
@@ -94,6 +96,7 @@ public class ToolCatalogService {
                 }
                 ToolDefinition definition = readDefinition(input, resource);
                 definition.toolHome = "classpath:" + resource;
+                attachClasspathMarkdown(definition, name);
                 return definition;
             } catch (Exception e) {
                 throw new IllegalStateException("Failed to load tool definition: " + resource, e);
@@ -106,9 +109,37 @@ public class ToolCatalogService {
         try (InputStream input = Files.newInputStream(path)) {
             ToolDefinition definition = readDefinition(input, path.getFileName().toString());
             definition.toolHome = path.toAbsolutePath().normalize().toString();
+            attachFilesystemMarkdown(definition, path.getParent());
             return definition;
         } catch (Exception e) {
             throw new IllegalStateException("Failed to load tool definition: " + path, e);
+        }
+    }
+
+    private void attachClasspathMarkdown(ToolDefinition definition, String toolName) {
+        for (String fileName : SkillMarkdownSupport.DOCUMENT_FILENAMES) {
+            String resource = "tools/" + toolName + "/" + fileName;
+            try (InputStream input = getClass().getClassLoader().getResourceAsStream(resource)) {
+                if (input == null) continue;
+                definition.markdownHome = "classpath:" + resource;
+                definition.markdownDescription = new String(input.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+                return;
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    private void attachFilesystemMarkdown(ToolDefinition definition, Path toolDir) {
+        if (toolDir == null || !Files.isDirectory(toolDir)) return;
+        for (String fileName : SkillMarkdownSupport.DOCUMENT_FILENAMES) {
+            Path candidate = toolDir.resolve(fileName);
+            if (!Files.isRegularFile(candidate)) continue;
+            try {
+                definition.markdownHome = candidate.toAbsolutePath().normalize().toString();
+                definition.markdownDescription = Files.readString(candidate, java.nio.charset.StandardCharsets.UTF_8);
+                return;
+            } catch (Exception ignored) {
+            }
         }
     }
 

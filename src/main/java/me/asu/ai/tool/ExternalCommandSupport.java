@@ -1,6 +1,8 @@
 package me.asu.ai.tool;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.InputStream;
@@ -9,8 +11,20 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import me.asu.ai.config.AppConfig;
 
 public class ExternalCommandSupport {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private final AppConfig config;
+
+    public ExternalCommandSupport() {
+        this(AppConfig.load());
+    }
+
+    public ExternalCommandSupport(AppConfig config) {
+        this.config = config == null ? AppConfig.load() : config;
+    }
 
     public ToolExecutionResult execute(ToolDefinition definition, JsonNode args) {
         try {
@@ -32,6 +46,14 @@ public class ExternalCommandSupport {
             }
 
             ProcessBuilder builder = new ProcessBuilder(command);
+            builder.environment().put("AI_FIX_PROVIDER", safeConfig("provider"));
+            builder.environment().put("AI_FIX_MODEL", safeConfig("model"));
+            builder.environment().put("AI_FIX_PYTHON_SCRIPTS_DIR", config.getPythonScriptsDirectory().toString());
+            putIfPresent(builder, "OPENAI_API_KEY", "openai.api.key");
+            putIfPresent(builder, "OPENAI_BASE_URL", "openai.base.url");
+            putIfPresent(builder, "GROQ_API_KEY", "groq.api.key");
+            putIfPresent(builder, "GROQ_BASE_URL", "groq.base.url");
+            putIfPresent(builder, "OLLAMA_BASE_URL", "ollama.base.url");
             Path workingDir = definition.tool.workingDirectory == null || definition.tool.workingDirectory.isBlank()
                     ? toolDir
                     : resolvePathToken(definition.tool.workingDirectory, toolDir, toolDir);
@@ -41,6 +63,13 @@ public class ExternalCommandSupport {
             String stdout = readAll(process.getInputStream());
             String stderr = readAll(process.getErrorStream());
             int exitCode = process.waitFor();
+            ToolExecutionResult parsedResult = tryParseEnvelope(definition.name, stdout);
+            if (parsedResult != null) {
+                if (parsedResult.ok()) {
+                    return parsedResult;
+                }
+                return ToolExecutionResult.failure(definition.name, parsedResult.error());
+            }
             if (exitCode != 0) {
                 String error = stderr.isBlank() ? "external command failed with exit code " + exitCode : stderr.trim();
                 return ToolExecutionResult.failure(definition.name, error);
@@ -52,6 +81,31 @@ public class ExternalCommandSupport {
                     "exitCode", exitCode));
         } catch (Exception e) {
             return ToolExecutionResult.failure(definition.name, e.getMessage());
+        }
+    }
+
+    private ToolExecutionResult tryParseEnvelope(String toolName, String stdout) {
+        String text = stdout == null ? "" : stdout.trim();
+        if (text.isBlank() || !(text.startsWith("{") && text.endsWith("}"))) {
+            return null;
+        }
+        try {
+            java.util.Map<String, Object> map = MAPPER.readValue(text, new TypeReference<java.util.Map<String, Object>>() {
+            });
+            if (!map.containsKey("ok") || !map.containsKey("toolName")) {
+                return null;
+            }
+            boolean ok = Boolean.parseBoolean(String.valueOf(map.get("ok")));
+            String envelopeTool = String.valueOf(map.getOrDefault("toolName", toolName));
+            String output = String.valueOf(map.getOrDefault("output", ""));
+            String error = String.valueOf(map.getOrDefault("error", ""));
+            Object dataObj = map.get("data");
+            java.util.Map<String, Object> data = dataObj instanceof java.util.Map<?, ?> 
+                    ? sanitizeMap(MAPPER.convertValue(dataObj, new TypeReference<java.util.Map<String, Object>>() {}))
+                    : java.util.Map.of();
+            return new ToolExecutionResult(ok, envelopeTool, output, data, error);
+        } catch (Exception ignored) {
+            return null;
         }
     }
 
@@ -81,17 +135,46 @@ public class ExternalCommandSupport {
 
     private String renderToken(String token, JsonNode args, Path toolDir) {
         String rendered = token.replace("${toolHome}", toolDir.toString().replace('\\', '/'));
+        String pythonScriptsDir = config.getPythonScriptsDirectory().toString().replace('\\', '/');
+        rendered = rendered.replace("${pythonScriptsDir}", pythonScriptsDir);
+        rendered = rendered.replace("${pythonHome}", pythonScriptsDir);
+        boolean hadVariable = token.contains("${");
+        boolean variableResolved = false;
+
         if (args != null && args.isObject()) {
             var names = args.fieldNames();
             while (names.hasNext()) {
                 String name = names.next();
-                rendered = rendered.replace("${" + name + "}", args.path(name).asText(""));
+                String placeholder = "${" + name + "}";
+                if (rendered.contains(placeholder)) {
+                    String value = args.path(name).asText("");
+                    rendered = rendered.replace(placeholder, value);
+                    if (!value.isBlank()) {
+                        variableResolved = true;
+                    }
+                }
             }
         }
+
+        // If the token contained a variable that was NOT resolved to a non-blank value,
+        // treat the whole token as empty so it can be skipped along with its flag.
+        if (hadVariable && !variableResolved && rendered.contains("${")) {
+            return "";
+        }
+
         if (rendered.isBlank() || rendered.matches("^.*=$")) {
             return "";
         }
-        return resolvePathToken(rendered, toolDir, toolDir).toString();
+        
+        // Only attempt to resolve as a path if it contains separators or toolHome was substituted
+        if (token.contains("${toolHome}") || rendered.contains("/") || rendered.contains("\\") || rendered.startsWith(".")) {
+            try {
+                return resolvePathToken(rendered, toolDir, toolDir).toString();
+            } catch (Exception e) {
+                return rendered;
+            }
+        }
+        return rendered;
     }
 
     private boolean isOptionFlag(String token) {
@@ -129,6 +212,53 @@ public class ExternalCommandSupport {
 
     private boolean isWindows() {
         return File.separatorChar == '\\';
+    }
+
+    private java.util.Map<String, Object> sanitizeMap(java.util.Map<String, Object> input) {
+        java.util.LinkedHashMap<String, Object> result = new java.util.LinkedHashMap<>();
+        for (java.util.Map.Entry<String, Object> entry : input.entrySet()) {
+            if (entry.getKey() == null || entry.getValue() == null) {
+                continue;
+            }
+            result.put(entry.getKey(), sanitizeValue(entry.getValue()));
+        }
+        return result;
+    }
+
+    private Object sanitizeValue(Object value) {
+        if (value instanceof java.util.Map<?, ?> nestedMap) {
+            java.util.LinkedHashMap<String, Object> result = new java.util.LinkedHashMap<>();
+            for (java.util.Map.Entry<?, ?> entry : nestedMap.entrySet()) {
+                if (entry.getKey() == null || entry.getValue() == null) {
+                    continue;
+                }
+                result.put(String.valueOf(entry.getKey()), sanitizeValue(entry.getValue()));
+            }
+            return result;
+        }
+        if (value instanceof java.util.List<?> nestedList) {
+            java.util.ArrayList<Object> result = new java.util.ArrayList<>();
+            for (Object item : nestedList) {
+                if (item == null) {
+                    continue;
+                }
+                result.add(sanitizeValue(item));
+            }
+            return result;
+        }
+        return value;
+    }
+
+    private void putIfPresent(ProcessBuilder builder, String envName, String configKey) {
+        String value = safeConfig(configKey);
+        if (!value.isBlank()) {
+            builder.environment().put(envName, value);
+        }
+    }
+
+    private String safeConfig(String key) {
+        String value = config == null ? null : config.get(key);
+        return value == null ? "" : value;
     }
 
     private String readAll(InputStream input) throws Exception {

@@ -6,28 +6,6 @@ tool:
   program: python
   args:
     - ./run.py
-    - --action
-    - ${action}
-    - --url
-    - ${url}
-    - --target
-    - ${target}
-    - --value
-    - ${value}
-    - --path
-    - ${path}
-    - --session
-    - ${session}
-    - --config
-    - ${config}
-    - --headed
-    - ${headed}
-    - --persistent
-    - ${persistent}
-    - --extra-args
-    - ${extraArgs}
-    - --dry-run
-    - ${dryRun}
 arguments:
   - name: action
     type: string

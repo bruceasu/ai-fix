@@ -6,46 +6,6 @@ tool:
   program: python
   args:
     - ./run.py
-    - --job
-    - ${job}
-    - --csv-path
-    - ${csvPath}
-    - --import-date
-    - ${importDate}
-    - --output
-    - ${output}
-    - --target-table
-    - ${targetTable}
-    - --staging-table-prefix
-    - ${stagingTablePrefix}
-    - --copy-columns
-    - ${copyColumns}
-    - --merge-sql-file
-    - ${mergeSqlFile}
-    - --db-ref
-    - ${dbRef}
-    - --sql-file
-    - ${sqlFile}
-    - --db-type
-    - ${dbType}
-    - --db-psql-path
-    - ${dbPsqlPath}
-    - --db-mysql-path
-    - ${dbMysqlPath}
-    - --db-host
-    - ${dbHost}
-    - --db-port
-    - ${dbPort}
-    - --db-database
-    - ${dbDatabase}
-    - --db-user
-    - ${dbUser}
-    - --db-pgpass-file
-    - ${dbPgpassFile}
-    - --db-pgpassword
-    - ${dbPgpassword}
-    - --db-defaults-extra-file
-    - ${dbDefaultsExtraFile}
 arguments:
   - name: job
     type: string

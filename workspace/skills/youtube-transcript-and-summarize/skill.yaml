@@ -12,7 +12,7 @@ arguments:
     type: string
     description: Multiple YouTube URLs or IDs separated by commas or newlines
     required: false
-  - name: inputsFile
+  - name: inputs_file
     type: string
     description: Text file containing one YouTube URL or video ID per line
     required: false
@@ -21,7 +21,7 @@ arguments:
     description: Preferred transcript languages, comma-separated
     required: false
     defaultValue: zh-Hans,zh,en,ja
-  - name: outputDir
+  - name: output_dir
     type: string
     description: Optional transcript output directory
     required: false
@@ -35,17 +35,17 @@ arguments:
     description: Transcript fetch retry count per video
     required: false
     defaultValue: "3"
-  - name: useCache
+  - name: use_cache
     type: string
     description: true to reuse local cache entries
     required: false
     defaultValue: "true"
-  - name: maxCharsPerTranscript
+  - name: max_chars_per_transcript
     type: string
     description: Maximum number of transcript characters to inline per video
     required: false
     defaultValue: "12000"
-  - name: summaryOutput
+  - name: summary_output
     type: string
     description: Optional output markdown path for the generated summary
     required: false
@@ -57,16 +57,16 @@ steps:
     arguments:
       input: ${input.input}
       inputs: ${input.inputs}
-      inputsFile: ${input.inputsFile}
+      inputs_file: ${input.inputs_file}
       languages: ${input.languages}
-      outputDir: ${input.outputDir}
+      output_dir: ${input.output_dir}
       workers: ${input.workers}
       retries: ${input.retries}
-      useCache: ${input.useCache}
-      outputMode: json
-      includeTranscriptText: true
-      maxCharsPerTranscript: ${input.maxCharsPerTranscript}
-      dryRun: false
+      use_cache: ${input.use_cache}
+      output_mode: json
+      include_transcript_text: true
+      max_chars_per_transcript: ${input.max_chars_per_transcript}
+      dry_run: false
   - id: summarize
     type: tool
     toolName: llm

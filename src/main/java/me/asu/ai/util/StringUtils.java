@@ -124,4 +124,32 @@ public class StringUtils {
             return str;
         }
     }
+
+    
+    public static String safe(String value) {
+        return value == null ? "" : value;
+    }
+
+    
+    public static String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return "";
+    }
+
+        
+    public static String valueOrDefault(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
+    }
+
+    public static String shorten(String text, int maxChars) {
+        String value = StringUtils.safe(text).replace('\r', ' ').replace('\n', ' ').trim();
+        if (value.length() <= maxChars) {
+            return value;
+        }
+        return value.substring(0, Math.max(0, maxChars)).trim() + "...";
+    }
 }

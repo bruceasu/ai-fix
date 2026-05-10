@@ -76,20 +76,33 @@ public class SkillExecutor {
     }
 
     private String resolveTemplate(String template, Map<String, Object> context) {
-        if (template == null) {
+        if (template == null || template.isBlank()) {
             return "";
         }
-        String resolved = template;
-        Object inputObject = context.get("input");
-        if (inputObject instanceof Map<?, ?> input) {
-            for (Map.Entry<?, ?> entry : input.entrySet()) {
-                resolved = resolved.replace("${input." + entry.getKey() + "}", String.valueOf(entry.getValue()));
+        
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\\$\\{([^}]+)\\}");
+        java.util.regex.Matcher matcher = pattern.matcher(template);
+        StringBuilder sb = new StringBuilder();
+        
+        while (matcher.find()) {
+            String key = matcher.group(1);
+            Object value = resolveValue(key, context);
+            matcher.appendReplacement(sb, value != null ? java.util.regex.Matcher.quoteReplacement(String.valueOf(value)) : "");
+        }
+        matcher.appendTail(sb);
+        return sb.toString();
+    }
+
+    private Object resolveValue(String key, Map<String, Object> context) {
+        if (key.contains(".")) {
+            String[] parts = key.split("\\.", 2);
+            Object obj = context.get(parts[0]);
+            if (obj instanceof Map<?, ?> map) {
+                return map.get(parts[1]);
             }
+            return null;
         }
-        for (Map.Entry<String, Object> entry : context.entrySet()) {
-            resolved = resolved.replace("${" + entry.getKey() + "}", String.valueOf(entry.getValue()));
-        }
-        return resolved;
+        return context.get(key);
     }
 
     private String outputKey(SkillStepDefinition step) {

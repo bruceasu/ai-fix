@@ -10,4 +10,7 @@ public class ToolDefinition {
     public ToolRuntimeSpec tool = new ToolRuntimeSpec();
     public List<ToolArgumentDefinition> arguments = new ArrayList<>();
     public String toolHome;
+    // Optional markdown documentation attached from workspace or classpath
+    public String markdownHome;
+    public String markdownDescription;
 }
